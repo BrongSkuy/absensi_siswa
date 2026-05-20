@@ -5,9 +5,18 @@ import { admin } from "better-auth/plugins";
 import { db } from "@/db";
 
 export const auth = betterAuth({
+  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
   database: drizzleAdapter(db, {
     provider: "sqlite",
   }),
+
+  trustedOrigins: [
+    "http://localhost:3000",
+    "https://absensi-siswa-smk.vercel.app",
+    "https://absensi-siswa-mu.vercel.app",
+    "https://absensi-siswa-git-main-brongskuys-projects.vercel.app",
+    process.env.BETTER_AUTH_URL || "",
+  ],
 
   emailAndPassword: {
     enabled: true,
@@ -16,7 +25,7 @@ export const auth = betterAuth({
 
   plugins: [
     username({
-      usernameValidator: (username) => true,
+      usernameValidator: () => true,
     }), // login via NIP/NIS as username
     admin({
       defaultRole: "user", // default role, admin sets roles via admin plugin

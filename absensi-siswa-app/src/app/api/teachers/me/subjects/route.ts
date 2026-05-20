@@ -23,7 +23,7 @@ export async function GET() {
   }
 
   // Check if teacher is waliKelas for any class
-  const { classes } = await import("@/db/schema");
+  const { classes, teacherClasses } = await import("@/db/schema");
   const waliKelasCheck = await db
     .select()
     .from(classes)
@@ -31,15 +31,27 @@ export async function GET() {
 
   const waliClasses = waliKelasCheck.map((c) => c.namaKelas);
 
-  // Get subjects mapped to this teacher
+  // Get explicitly assigned classes
+  const assignedClassesCheck = await db
+    .selectDistinct({ kelas: teacherClasses.kelas })
+    .from(teacherClasses)
+    .where(eq(teacherClasses.teacherId, teacherProfile.id));
+
+  const assignedClasses = assignedClassesCheck.map((c) => c.kelas);
+
+  // Combine waliClasses and assignedClasses uniquely
+  const teacherClassNames = Array.from(new Set([...waliClasses, ...assignedClasses]));
+
+  // Get unique subjects mapped to this teacher
   const subjects = await db
-    .select({ namaMapel: teacherSubjects.namaMapel })
+    .selectDistinct({ namaMapel: teacherSubjects.namaMapel })
     .from(teacherSubjects)
     .where(eq(teacherSubjects.teacherId, teacherProfile.id));
 
   return NextResponse.json({
     waliClasses,
     isWaliKelas: waliClasses.length > 0, // Keep for backward compatibility if needed
+    classes: teacherClassNames,
     subjects,
   });
 }

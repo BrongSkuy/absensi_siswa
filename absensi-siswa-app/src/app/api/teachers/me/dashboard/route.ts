@@ -114,7 +114,7 @@ export async function GET() {
     for (const c of assignedClasses) {
       const relevantMapels = [...c.subjects];
       
-      let attendanceForClassToday: any[] = [];
+      let attendanceForClassToday: { id: string }[] = [];
       if (relevantMapels.length > 0) {
          attendanceForClassToday = await db
             .select({ id: attendance.id })

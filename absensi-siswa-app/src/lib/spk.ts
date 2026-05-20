@@ -1,8 +1,8 @@
 import { db } from "@/db";
-import { spkScores, students, spkCriteria, attendance } from "@/db/schema";
+import { spkScores, students, spkCriteria, attendance, academicYears } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-export async function calculateSPK(kelas: string) {
+export async function calculateSPK(kelas: string, targetPeriode?: string) {
   // 1. Fetch Students
   let siswaKelas = [];
   if (kelas === "all" || kelas === "umum") {
@@ -13,16 +13,23 @@ export async function calculateSPK(kelas: string) {
   
   if (siswaKelas.length === 0) return [];
 
-  // 2. Fetch Criteria
+  // 2. Determine academic period
+  let activePeriode = targetPeriode;
+  if (!activePeriode) {
+    const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
+    activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+  }
+
+  // 3. Fetch Criteria
   const criteriaList = await db.select().from(spkCriteria).all();
 
-  // 3. Fetch ALL SPK Scores (no period filter)
-  const allScores = await db.select().from(spkScores).all();
+  // 4. Fetch SPK Scores filtered by active period
+  const allScores = await db.select().from(spkScores).where(eq(spkScores.periode, activePeriode)).all();
 
-  // 4. Fetch ALL Attendance (no period filter)
-  const allAttendance = await db.select().from(attendance).all();
+  // 5. Fetch Attendance filtered by active period
+  const allAttendance = await db.select().from(attendance).where(eq(attendance.periode, activePeriode)).all();
 
-  // 5. Build raw Matrix
+  // 6. Build raw Matrix
   const rawMatrix: Record<string, Record<string, number>> = {};
   siswaKelas.forEach((s) => {
      rawMatrix[s.id] = {};
@@ -55,7 +62,7 @@ export async function calculateSPK(kelas: string) {
      }
   }
 
-  // 6. Normalization (Simple Additive Weighting)
+  // 7. Normalization (Simple Additive Weighting)
   // Assume all criteria are BENEFIT (higher is better)
   const maxVals: Record<string, number> = {};
   criteriaList.forEach(c => {
@@ -72,7 +79,7 @@ export async function calculateSPK(kelas: string) {
      });
   });
 
-  // 7. Compute Final Score & Rank
+  // 8. Compute Final Score & Rank
   const results = siswaKelas.map((s) => {
      let finalScore = 0;
      const detailNormalisasi: Record<string, number> = {};
@@ -106,4 +113,80 @@ export async function calculateSPK(kelas: string) {
   }));
 
   return rankedResults;
+}
+
+export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: string) {
+  // 1. Fetch Students
+  let siswaKelas = [];
+  if (kelas === "all" || kelas === "umum") {
+    siswaKelas = await db.select().from(students).all();
+  } else {
+    siswaKelas = await db.select().from(students).where(eq(students.kelas, kelas)).all();
+  }
+  
+  if (siswaKelas.length === 0) {
+    return { isValid: true, missing: [] };
+  }
+
+  // 2. Determine academic period
+  let activePeriode = targetPeriode;
+  if (!activePeriode) {
+    const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
+    activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+  }
+
+  // 3. Fetch Criteria
+  const criteriaList = await db.select().from(spkCriteria).all();
+
+  // 4. Fetch SPK Scores filtered by active period
+  const allScores = await db.select().from(spkScores).where(eq(spkScores.periode, activePeriode)).all();
+
+  // 5. Fetch Attendance filtered by active period
+  const allAttendance = await db.select().from(attendance).where(eq(attendance.periode, activePeriode)).all();
+
+  const missingEntries: Array<{
+    studentId: string;
+    studentName: string;
+    kelas: string;
+    criteriaId: string;
+    criteriaName: string;
+    reason: string;
+  }> = [];
+
+  for (const s of siswaKelas) {
+    for (const c of criteriaList) {
+      if (c.tipe === "Otomatis" && c.namaKriteria.toLowerCase().includes("kehadiran")) {
+        // Check if student has any attendance recorded in this period
+        const sAtt = allAttendance.filter(a => a.studentId === s.id && a.status !== null);
+        if (sAtt.length === 0) {
+          missingEntries.push({
+            studentId: s.id,
+            studentName: s.namaLengkap,
+            kelas: s.kelas,
+            criteriaId: c.id,
+            criteriaName: c.namaKriteria,
+            reason: "Belum ada data absensi tercatat"
+          });
+        }
+      } else {
+        // Manual criteria: check if student has a score for this criteria in the period
+        const hasScore = allScores.some(sc => sc.studentId === s.id && sc.criteriaId === c.id);
+        if (!hasScore) {
+          missingEntries.push({
+            studentId: s.id,
+            studentName: s.namaLengkap,
+            kelas: s.kelas,
+            criteriaId: c.id,
+            criteriaName: c.namaKriteria,
+            reason: "Nilai belum diinput oleh guru"
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    isValid: missingEntries.length === 0,
+    missing: missingEntries
+  };
 }

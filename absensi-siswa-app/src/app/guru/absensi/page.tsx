@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import * as XLSX from "xlsx";
 import {
-  ClipboardCheck, Save, Download, Upload, CheckCheck, Calendar as CalendarIcon, Loader2, Trash2, BookOpen
+  ClipboardCheck, Save, Download, Upload, CheckCheck, Calendar as CalendarIcon, Loader2, Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { getTodayWIB } from "@/lib/utils";
@@ -51,6 +51,13 @@ const statusColors: Record<Status, string> = {
 
 const statusList: Status[] = ["Hadir", "Izin", "Sakit", "Alfa"];
 
+interface HistoryRecord {
+  id: string;
+  nis: string;
+  nama: string;
+  history: Record<string, string>;
+}
+
 export default function GuruAbsensiPage() {
   const [classes, setClasses] = useState<KelasRow[]>([]);
   const [subjects, setSubjects] = useState<MapelRow[]>([]);
@@ -67,35 +74,45 @@ export default function GuruAbsensiPage() {
   const [importing, setImporting] = useState(false);
   const [isWaliKelas, setIsWaliKelas] = useState(false);
   const [waliClasses, setWaliClasses] = useState<string[]>([]);
+  const [historyData, setHistoryData] = useState<{dates: string[], records: HistoryRecord[]}>({dates: [], records: []});
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
-
   // Fetch classes and subjects on mount
   useEffect(() => {
     Promise.all([
-      fetch("/api/classes").then(r => r.json()),
-      fetch("/api/teachers/me/subjects").then(r => r.json()).catch(() => ({ isWaliKelas: false, waliClasses: [], subjects: [] })) // fallback if error
-    ]).then(([classesData, subjectsRes]) => {
-      setClasses(classesData);
-      const isWali = subjectsRes.isWaliKelas || false;
-      const wClasses = subjectsRes.waliClasses || [];
-      setIsWaliKelas(isWali);
-      setWaliClasses(wClasses);
-      
-      const firstClass = classesData.length > 0 ? classesData[0].namaKelas : "";
-      if (firstClass) setSelectedKelas(firstClass);
-      
-      const subjectsData = subjectsRes.subjects || [];
-      if (Array.isArray(subjectsData) && subjectsData.length > 0) {
-        setSubjects(subjectsData);
-        if (!isWali || !wClasses.includes(firstClass)) {
-          setSelectedMapel(subjectsData[0].namaMapel);
-        } else {
-          setSelectedMapel("Umum");
+      fetch("/api/classes").then((r) => r.json()),
+      fetch("/api/teachers/me/subjects")
+        .then((r) => r.json())
+        .catch(() => ({ isWaliKelas: false, waliClasses: [], classes: [], subjects: [] })),
+    ])
+      .then(([classesData, subjectsRes]) => {
+        const isWali = subjectsRes.isWaliKelas || false;
+        const wClasses = subjectsRes.waliClasses || [];
+        const assignedClasses = subjectsRes.classes || []; // The string array of assigned class names
+
+        setIsWaliKelas(isWali);
+        setWaliClasses(wClasses);
+
+        // Filter out classes that are not assigned to this teacher
+        const filteredClasses = classesData.filter((c: KelasRow) => assignedClasses.includes(c.namaKelas));
+        setClasses(filteredClasses);
+
+        const firstClass = filteredClasses.length > 0 ? filteredClasses[0].namaKelas : "";
+        if (firstClass) setSelectedKelas(firstClass);
+
+        const subjectsData = subjectsRes.subjects || [];
+        if (Array.isArray(subjectsData) && subjectsData.length > 0) {
+          setSubjects(subjectsData);
+          if (!isWali || !wClasses.includes(firstClass)) {
+            setSelectedMapel(subjectsData[0].namaMapel);
+          } else {
+            setSelectedMapel("Umum");
+          }
+        } else if (!isWali || !wClasses.includes(firstClass)) {
+          setSelectedMapel("");
         }
-      } else if (!isWali || !wClasses.includes(firstClass)) {
-        setSelectedMapel("");
-      }
-    }).catch(() => toast.error("Gagal memuat data awal"));
+      })
+      .catch(() => toast.error("Gagal memuat data awal"));
   }, []);
 
   // Handle Mapel Reset when Class changes
@@ -108,6 +125,20 @@ export default function GuruAbsensiPage() {
       }
     }
   }, [selectedKelas, selectedMapel, waliClasses, subjects]);
+
+  const fetchHistory = useCallback(async () => {
+    if (!selectedKelas) return;
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/attendance/history?kelas=${encodeURIComponent(selectedKelas)}&mapel=${encodeURIComponent(selectedMapel)}`);
+      const data = await res.json();
+      setHistoryData(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [selectedKelas, selectedMapel]);
 
   const handleLoadGrid = useCallback(async () => {
     if (!selectedKelas) return;
@@ -126,12 +157,14 @@ export default function GuruAbsensiPage() {
       });
       setAttendanceData(init);
       setShowGrid(true);
+      
+      await fetchHistory();
     } catch {
       toast.error("Gagal memuat data absensi");
     } finally {
       setLoading(false);
     }
-  }, [selectedKelas, tanggal, selectedMapel]);
+  }, [selectedKelas, tanggal, selectedMapel, fetchHistory]);
 
   const handleStatusChange = (studentId: string, status: Status) => {
     setAttendanceData((prev) => ({ ...prev, [studentId]: status }));
@@ -332,12 +365,12 @@ export default function GuruAbsensiPage() {
               </Select>
             </div>
             
-            <div className="space-y-2 flex-1 sm:min-w-[200px]">
+            <div className="space-y-2 flex-1 sm:min-w-[250px]">
               <Label>Mata Pelajaran</Label>
               <Select value={selectedMapel} onValueChange={(val) => setSelectedMapel(val as string)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {waliClasses.includes(selectedKelas) && <SelectItem value="Umum">Absen Pagi (Wali Kelas)</SelectItem>}
+                  {isWaliKelas && waliClasses.includes(selectedKelas) && <SelectItem value="Umum">Absen Pagi (Wali Kelas)</SelectItem>}
                   {subjects.map((s, i) => (
                     <SelectItem key={i} value={s.namaMapel}>
                       {s.namaMapel}
@@ -413,12 +446,12 @@ export default function GuruAbsensiPage() {
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-max border-collapse">
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground w-12">No</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground w-24">NIS</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Nama Siswa</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[200px] whitespace-nowrap">Nama Siswa</th>
                       <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Status Kehadiran</th>
                     </tr>
                   </thead>
@@ -487,6 +520,71 @@ export default function GuruAbsensiPage() {
               {saving ? "Menyimpan..." : "Simpan Semua Absensi"}
             </Button>
           </div>
+
+          {/* History Table */}
+          {/* History Table */}
+          <Card className="mt-8">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                Riwayat Kehadiran ({selectedMapel === "Umum" ? "Umum / Wali Kelas" : selectedMapel})
+                {loadingHistory && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              </CardTitle>
+              <CardDescription>Menampilkan semua riwayat absen yang pernah diinput untuk mata pelajaran ini</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {historyData.dates.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  Belum ada riwayat absensi yang disimpan untuk mata pelajaran ini.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-max text-left border-collapse">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="px-4 py-3 text-sm font-semibold text-muted-foreground w-12 border-b text-center">No</th>
+                        <th className="px-4 py-3 text-sm font-semibold text-muted-foreground border-b text-center">NIS</th>
+                        <th className="px-4 py-3 text-sm font-semibold text-muted-foreground border-b min-w-[200px]">Nama Siswa</th>
+                        {historyData.dates.map(date => (
+                          <th key={date} className="px-4 py-3 text-center text-sm font-semibold text-muted-foreground border-b whitespace-nowrap">
+                            {new Date(date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' })}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyData.records.map((siswa, index) => (
+                        <tr key={siswa.id} className="border-b transition-colors hover:bg-muted/30">
+                          <td className="px-4 py-3 text-sm text-muted-foreground text-center">{index + 1}</td>
+                          <td className="px-4 py-3 font-mono text-sm text-center">{siswa.nis}</td>
+                          <td className="px-4 py-3 text-sm font-medium">{siswa.nama}</td>
+                          {historyData.dates.map(date => {
+                            const status = siswa.history[date];
+                            return (
+                              <td key={date} className="px-4 py-3 text-center text-sm">
+                                <Badge variant={
+                                  status === "Hadir" ? "default" :
+                                  status === "Izin" ? "secondary" :
+                                  status === "Sakit" ? "outline" :
+                                  status === "Alfa" ? "destructive" : "outline"
+                                } className={
+                                  status === "Hadir" ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-transparent" :
+                                  status === "Izin" ? "bg-amber-100 text-amber-700 hover:bg-amber-200 border-transparent" :
+                                  status === "Sakit" ? "bg-sky-100 text-sky-700 hover:bg-sky-200 border-sky-200 border-transparent" :
+                                  status === "Alfa" ? "bg-red-100 text-red-700 hover:bg-red-200 border-transparent" : "bg-gray-100 text-gray-400 border-gray-200"
+                                }>
+                                  {status === "Hadir" ? "H" : status === "Izin" ? "I" : status === "Sakit" ? "S" : status === "Alfa" ? "A" : "-"}
+                                </Badge>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

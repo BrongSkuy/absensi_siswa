@@ -21,6 +21,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronDown,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,7 @@ const adminNavGroups: NavGroup[] = [
     items: [
       { label: "Absensi", href: "/admin/absensi", icon: ClipboardCheck },
       { label: "Input Nilai", href: "/admin/nilai", icon: PenLine },
+      { label: "Nilai Saya", href: "/admin/nilai-saya", icon: ClipboardList },
       { label: "Rekap Kelas", href: "/admin/rekap", icon: BarChart3 },
       { label: "Leaderboard", href: "/admin/leaderboard", icon: Trophy },
     ]
@@ -83,6 +85,7 @@ const guruNav: NavItem[] = [
   { label: "Absensi", href: "/guru/absensi", icon: ClipboardCheck },
   { label: "Input Nilai", href: "/guru/nilai", icon: PenLine },
   { label: "Rekap Kelas", href: "/guru/rekap", icon: BarChart3 },
+  { label: "Leaderboard", href: "/guru/leaderboard", icon: Trophy },
 ];
 
 const siswaNav: NavItem[] = [
@@ -126,7 +129,7 @@ export function Sidebar({ role, collapsed, onToggle }: SidebarProps) {
     const isActive =
       pathname === item.href ||
       (item.href !== `/${role.toLowerCase()}` &&
-        pathname.startsWith(item.href));
+        pathname.startsWith(item.href + "/"));
 
     const linkContent = (
       <Link

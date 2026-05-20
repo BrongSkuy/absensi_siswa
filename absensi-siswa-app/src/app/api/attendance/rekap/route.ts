@@ -50,7 +50,17 @@ export async function GET(request: NextRequest) {
     // 3. Get spkScores
     const mScores = await db.select().from(spkScores).where(eq(spkScores.periode, periode)).all();
     const mCriteria = await db.select().from(spkCriteria).where(eq(spkCriteria.tipe, "Manual")).all();
-    const existingScores = mScores.filter((sc) => siswaKelas.some(s => s.id === sc.studentId));
+    let existingScores = mScores.filter((sc) => siswaKelas.some(s => s.id === sc.studentId));
+
+    const mapel = searchParams.get("mapel");
+    if (mapel && mapel !== "Semua Mata Pelajaran") {
+      existingRecords = existingRecords.filter((a) => a.mapel === mapel);
+      if (mapel === "Umum") {
+        existingScores = existingScores.filter((sc) => sc.mapel === "Umum" || !sc.mapel);
+      } else {
+        existingScores = existingScores.filter((sc) => sc.mapel === mapel);
+      }
+    }
 
     // 4. Aggregate data per student
     const result = siswaKelas.map((siswa) => {

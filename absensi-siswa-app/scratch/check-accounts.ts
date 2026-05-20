@@ -2,6 +2,14 @@ import { db } from "@/db";
 import { students } from "@/db/schema";
 import { user } from "@/db/auth-schema";
 
+interface DBUser {
+  id: string;
+  name: string;
+  email: string;
+  username?: string | null;
+  appRole?: string | null;
+}
+
 async function checkDoubleAccounts() {
   const allStudents = await db.select().from(students).all();
   console.log("Students in students table:");
@@ -9,7 +17,16 @@ async function checkDoubleAccounts() {
 
   const allUsers = await db.select().from(user).all();
   console.log("\nUsers in user table:");
-  console.log(allUsers.map(u => ({ id: u.id, email: u.email, name: u.name, username: (u as any).username, role: (u as any).appRole })));
+  console.log(allUsers.map(u => {
+    const extUser = u as unknown as DBUser;
+    return { 
+      id: extUser.id, 
+      email: extUser.email, 
+      name: extUser.name, 
+      username: extUser.username, 
+      role: extUser.appRole 
+    };
+  }));
 }
 
 checkDoubleAccounts().catch(console.error);

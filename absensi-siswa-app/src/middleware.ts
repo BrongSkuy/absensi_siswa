@@ -17,9 +17,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for session cookie (Better Auth uses 'better-auth.session_token')
+  // Check for session cookie (Better Auth uses 'better-auth.session_token' locally and '__Secure-better-auth.session_token' in production HTTPS)
   const sessionToken =
-    request.cookies.get("better-auth.session_token")?.value;
+    request.cookies.get("better-auth.session_token")?.value ||
+    request.cookies.get("__Secure-better-auth.session_token")?.value;
 
   if (!sessionToken) {
     // No session → redirect to login

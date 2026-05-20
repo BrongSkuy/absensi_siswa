@@ -43,7 +43,7 @@ export default function LoginPage() {
 
       // Fetch session to get appRole for routing
       const { data: session } = await authClient.getSession();
-      const appRole = (session?.user as any)?.appRole as string | undefined;
+      const appRole = (session?.user as Record<string, unknown>)?.appRole as string | undefined;
 
       if (appRole === "ADMIN") {
         router.push("/admin");

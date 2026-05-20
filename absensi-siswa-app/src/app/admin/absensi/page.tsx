@@ -30,8 +30,7 @@ interface KelasRow {
   tingkat: string;
 }
 
-interface MapelRow {
-  id: string;
+interface SubjectData {
   namaMapel: string;
 }
 
@@ -52,9 +51,16 @@ const statusColors: Record<Status, string> = {
 
 const statusList: Status[] = ["Hadir", "Izin", "Sakit", "Alfa"];
 
+interface HistoryRecord {
+  id: string;
+  nis: string;
+  nama: string;
+  history: Record<string, string>;
+}
+
 export default function AdminAbsensiPage() {
   const [classes, setClasses] = useState<KelasRow[]>([]);
-  const [subjects, setSubjects] = useState<MapelRow[]>([]);
+  const [subjects, setSubjects] = useState<SubjectData[]>([]);
   const [selectedKelas, setSelectedKelas] = useState("");
   const [selectedMapel, setSelectedMapel] = useState("Umum");
   const [tanggal, setTanggal] = useState(getTodayWIB());
@@ -66,6 +72,8 @@ export default function AdminAbsensiPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [historyData, setHistoryData] = useState<{dates: string[], records: HistoryRecord[]}>({dates: [], records: []});
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
   // Fetch classes and subjects on mount
@@ -76,9 +84,30 @@ export default function AdminAbsensiPage() {
     ]).then(([classesData, subjectsData]) => {
       setClasses(classesData);
       if (classesData.length > 0) setSelectedKelas(classesData[0].namaKelas);
-      setSubjects(subjectsData);
+
+      // De-duplicate subjects by namaMapel
+      if (Array.isArray(subjectsData) && subjectsData.length > 0) {
+        const uniqueMapel = Array.from(
+          new Map(subjectsData.map((s: SubjectData) => [s.namaMapel, s])).values()
+        );
+        setSubjects(uniqueMapel);
+      }
     }).catch(() => toast.error("Gagal memuat data awal"));
   }, []);
+
+  const fetchHistory = useCallback(async () => {
+    if (!selectedKelas) return;
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/attendance/history?kelas=${encodeURIComponent(selectedKelas)}&mapel=${encodeURIComponent(selectedMapel)}`);
+      const data = await res.json();
+      setHistoryData(data);
+    } catch {
+      console.error("Gagal memuat riwayat absensi");
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [selectedKelas, selectedMapel]);
 
   const handleLoadGrid = useCallback(async () => {
     if (!selectedKelas) return;
@@ -96,12 +125,14 @@ export default function AdminAbsensiPage() {
       });
       setAttendanceData(init);
       setShowGrid(true);
+
+      await fetchHistory();
     } catch {
       toast.error("Gagal memuat data absensi");
     } finally {
       setLoading(false);
     }
-  }, [selectedKelas, tanggal, selectedMapel]);
+  }, [selectedKelas, tanggal, selectedMapel, fetchHistory]);
 
   const handleStatusChange = (studentId: string, status: Status) => {
     setAttendanceData((prev) => ({ ...prev, [studentId]: status }));
@@ -301,14 +332,14 @@ export default function AdminAbsensiPage() {
               </Select>
             </div>
             
-            <div className="space-y-2 flex-1 sm:min-w-[200px]">
+            <div className="space-y-2 flex-1 sm:min-w-[250px]">
               <Label>Mata Pelajaran</Label>
               <Select value={selectedMapel} onValueChange={(val) => setSelectedMapel(val || "Umum")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Umum">Absen Pagi (Wali Kelas)</SelectItem>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.namaMapel}>
+                  {subjects.map((s, i) => (
+                    <SelectItem key={i} value={s.namaMapel}>
                       {s.namaMapel}
                     </SelectItem>
                   ))}
@@ -381,12 +412,12 @@ export default function AdminAbsensiPage() {
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-max border-collapse">
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground w-12">No</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground w-24">NIS</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Nama Siswa</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground min-w-[200px] whitespace-nowrap">Nama Siswa</th>
                       <th className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground">Status Kehadiran</th>
                     </tr>
                   </thead>
@@ -455,6 +486,70 @@ export default function AdminAbsensiPage() {
               {saving ? "Menyimpan..." : "Simpan Semua Absensi"}
             </Button>
           </div>
+
+          {/* History Table */}
+          <Card className="mt-8">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                Riwayat Kehadiran ({selectedMapel === "Umum" ? "Umum / Wali Kelas" : selectedMapel})
+                {loadingHistory && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              </CardTitle>
+              <CardDescription>Menampilkan semua riwayat absen yang pernah diinput untuk mata pelajaran ini</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {historyData.dates.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  Belum ada riwayat absensi yang disimpan untuk mata pelajaran ini.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-max text-left border-collapse">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="px-4 py-3 text-sm font-semibold text-muted-foreground w-12 border-b text-center">No</th>
+                        <th className="px-4 py-3 text-sm font-semibold text-muted-foreground border-b text-center">NIS</th>
+                        <th className="px-4 py-3 text-sm font-semibold text-muted-foreground border-b min-w-[200px]">Nama Siswa</th>
+                        {historyData.dates.map(date => (
+                          <th key={date} className="px-4 py-3 text-center text-sm font-semibold text-muted-foreground border-b whitespace-nowrap">
+                            {new Date(date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short' })}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyData.records.map((siswa, index) => (
+                        <tr key={siswa.id} className="border-b transition-colors hover:bg-muted/30">
+                          <td className="px-4 py-3 text-sm text-muted-foreground text-center">{index + 1}</td>
+                          <td className="px-4 py-3 font-mono text-sm text-center">{siswa.nis}</td>
+                          <td className="px-4 py-3 text-sm font-medium">{siswa.nama}</td>
+                          {historyData.dates.map(date => {
+                            const status = siswa.history[date];
+                            return (
+                              <td key={date} className="px-4 py-3 text-center text-sm">
+                                <Badge variant={
+                                  status === "Hadir" ? "default" :
+                                  status === "Izin" ? "secondary" :
+                                  status === "Sakit" ? "outline" :
+                                  status === "Alfa" ? "destructive" : "outline"
+                                } className={
+                                  status === "Hadir" ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-transparent" :
+                                  status === "Izin" ? "bg-amber-100 text-amber-700 hover:bg-amber-200 border-transparent" :
+                                  status === "Sakit" ? "bg-sky-100 text-sky-700 hover:bg-sky-200 border-sky-200 border-transparent" :
+                                  status === "Alfa" ? "bg-red-100 text-red-700 hover:bg-red-200 border-transparent" : "bg-gray-100 text-gray-400 border-gray-200"
+                                }>
+                                  {status === "Hadir" ? "H" : status === "Izin" ? "I" : status === "Sakit" ? "S" : status === "Alfa" ? "A" : "-"}
+                                </Badge>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

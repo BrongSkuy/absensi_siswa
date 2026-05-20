@@ -69,7 +69,7 @@ export const attendance = sqliteTable("attendance", {
 // --- SPK Criteria (kriteria + bobot) ---
 export const spkCriteria = sqliteTable("spk_criteria", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  namaKriteria: text("nama_kriteria").notNull(),
+  namaKriteria: text("nama_kriteria").notNull().unique(),
   bobot: real("bobot").notNull(), // percentage weight
   tipe: text("tipe", { enum: ["Otomatis", "Manual"] }).notNull(),
   deskripsi: text("deskripsi"),
@@ -113,6 +113,27 @@ export const spkGradingCategories = sqliteTable("spk_grading_categories", {
   categories: text("categories").notNull(), // JSON string array, e.g., '["Tugas", "UTS", "Praktek"]'
 });
 
+// --- SPK Publish Status ---
+export const spkPublishStatus = sqliteTable("spk_publish_status", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  periode: text("periode").notNull().unique(),
+  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(false),
+  publishedAt: text("published_at"),
+  publishedBy: text("published_by"),
+});
+
+// --- SPK Results (Cached Leaderboard) ---
+export const spkResults = sqliteTable("spk_results", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  studentId: text("student_id").notNull(),
+  periode: text("periode").notNull(),
+  kelas: text("kelas").notNull(),
+  rank: integer("rank").notNull(),
+  rawScore: real("raw_score").notNull(),
+  persentase: real("persentase").notNull(),
+  details: text("details"),
+});
+
 // ============================================================
 // Type exports
 // ============================================================
@@ -125,3 +146,5 @@ export type NewAttendanceRecord = typeof attendance.$inferInsert;
 export type SpkCriteriaRow = typeof spkCriteria.$inferSelect;
 export type SpkScoreRow = typeof spkScores.$inferSelect;
 export type SpkGradingCategoryRow = typeof spkGradingCategories.$inferSelect;
+export type SpkPublishStatusRow = typeof spkPublishStatus.$inferSelect;
+export type SpkResultRow = typeof spkResults.$inferSelect;

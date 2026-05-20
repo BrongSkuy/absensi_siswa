@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { teachers, teacherSubjects, academicYears } from "@/db/schema";
+import { teachers, teacherSubjects } from "@/db/schema";
 import { like, or, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";

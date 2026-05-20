@@ -3,6 +3,13 @@ import { user } from "@/db/auth-schema";
 import { students, teachers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+interface DBUser {
+  id: string;
+  name: string;
+  email: string;
+  username?: string | null;
+}
+
 async function syncAccounts() {
   const allStudents = await db.select().from(students).all();
   
@@ -11,11 +18,11 @@ async function syncAccounts() {
     
     // Find user by email or username (nis)
     const existingUsers = await db.select().from(user).all();
-    const studentUser = existingUsers.find(u => u.email === expectedEmail || (u as any).username === s.nis);
+    const studentUser = existingUsers.find(u => u.email === expectedEmail || (u as DBUser).username === s.nis);
     
     if (studentUser) {
       // Update name and username if they don't match
-      if (studentUser.name !== s.namaLengkap || (studentUser as any).username !== s.nis) {
+      if (studentUser.name !== s.namaLengkap || (studentUser as DBUser).username !== s.nis) {
         await db.update(user)
           .set({ name: s.namaLengkap, username: s.nis, email: expectedEmail })
           .where(eq(user.id, studentUser.id))
@@ -31,10 +38,10 @@ async function syncAccounts() {
   for (const t of allTeachers) {
     const expectedEmail = `${t.nip}@sekolah.id`;
     const existingUsers = await db.select().from(user).all();
-    const teacherUser = existingUsers.find(u => u.email === expectedEmail || (u as any).username === t.nip);
+    const teacherUser = existingUsers.find(u => u.email === expectedEmail || (u as DBUser).username === t.nip);
     
     if (teacherUser) {
-      if (teacherUser.name !== t.namaLengkap || (teacherUser as any).username !== t.nip) {
+      if (teacherUser.name !== t.namaLengkap || (teacherUser as DBUser).username !== t.nip) {
         await db.update(user)
           .set({ name: t.namaLengkap, username: t.nip, email: expectedEmail })
           .where(eq(user.id, teacherUser.id))

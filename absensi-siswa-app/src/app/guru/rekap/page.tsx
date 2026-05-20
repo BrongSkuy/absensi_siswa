@@ -17,6 +17,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 
 interface StudentRekap {
   id: string;
@@ -35,43 +38,70 @@ interface ClassData {
   namaKelas: string;
 }
 
+interface SubjectData {
+  namaMapel: string;
+}
+
 export default function GuruRekapPage() {
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [selectedTanggal, setSelectedTanggal] = useState<string>("");
+  const [selectedMapel, setSelectedMapel] = useState<string>("Semua Mata Pelajaran");
+  const [subjects, setSubjects] = useState<string[]>([]);
+  const [isWaliKelas, setIsWaliKelas] = useState(false);
+  const [waliClasses, setWaliClasses] = useState<string[]>([]);
   const [rekapData, setRekapData] = useState<StudentRekap[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRekap, setLoadingRekap] = useState(false);
 
   useEffect(() => {
-    // Fetch classes available
-    fetch("/api/classes")
-      .then(res => res.json())
-      .then(data => {
-        if (!Array.isArray(data)) {
-          console.error("API Error: ", data);
+    // Fetch classes available and teacher assignments
+    Promise.all([
+      fetch("/api/classes").then((res) => res.json()),
+      fetch("/api/teachers/me/subjects")
+        .then((res) => res.json())
+        .catch(() => ({ classes: [], subjects: [], waliClasses: [], isWaliKelas: false })),
+    ])
+      .then(([classesData, subjectsRes]) => {
+        if (!Array.isArray(classesData)) {
           setClasses([]);
           setLoading(false);
           return;
         }
-        setClasses(data);
-        if (data.length > 0) {
-          setSelectedClass(data[0].namaKelas);
+
+        const isWali = subjectsRes.isWaliKelas || false;
+        const wClasses = subjectsRes.waliClasses || [];
+        const assignedClasses = subjectsRes.classes || [];
+        const subjectsData = subjectsRes.subjects || [];
+
+        setIsWaliKelas(isWali);
+        setWaliClasses(wClasses);
+        setSubjects(subjectsData.map((s: SubjectData) => s.namaMapel));
+
+        const filteredClasses = classesData.filter((c: ClassData) => assignedClasses.includes(c.namaKelas));
+
+        setClasses(filteredClasses);
+        if (filteredClasses.length > 0) {
+          setSelectedClass(filteredClasses[0].namaKelas);
         }
         setLoading(false);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error(err);
         setLoading(false);
       });
   }, []);
+
 
   useEffect(() => {
     if (!selectedClass) return;
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingRekap(true);
-    const url = `/api/attendance/rekap?kelas=${encodeURIComponent(selectedClass)}${selectedTanggal ? `&tanggal=${selectedTanggal}` : ""}`;
+    let url = `/api/attendance/rekap?kelas=${encodeURIComponent(selectedClass)}`;
+    if (selectedTanggal) url += `&tanggal=${selectedTanggal}`;
+    if (selectedMapel && selectedMapel !== "Semua Mata Pelajaran") url += `&mapel=${encodeURIComponent(selectedMapel)}`;
+
     fetch(url)
       .then(res => res.json())
       .then(data => {
@@ -88,7 +118,7 @@ export default function GuruRekapPage() {
         console.error(err);
         setLoadingRekap(false);
       });
-  }, [selectedClass, selectedTanggal]);
+  }, [selectedClass, selectedTanggal, selectedMapel]);
 
   const chartData = useMemo(() => {
     let hadir = 0, izin = 0, sakit = 0, alfa = 0;
@@ -162,7 +192,12 @@ export default function GuruRekapPage() {
           </CardContent>
         </Card>
       ) : (
-        <Tabs value={selectedClass} onValueChange={setSelectedClass}>
+        <Tabs value={selectedClass} onValueChange={(val) => {
+          setSelectedClass(val);
+          if (selectedMapel === "Umum" && !waliClasses.includes(val)) {
+            setSelectedMapel("Semua Mata Pelajaran");
+          }
+        }}>
           <TabsList className="flex flex-wrap h-auto">
             {classes.map(c => (
               <TabsTrigger key={c.id} value={c.namaKelas}>Kelas {c.namaKelas}</TabsTrigger>
@@ -183,7 +218,21 @@ export default function GuruRekapPage() {
                       <CardTitle className="text-base">Ringkasan Kehadiran Tersimpan</CardTitle>
                       <CardDescription>Kelas {selectedClass} · {selectedTanggal ? `Tanggal: ${selectedTanggal}` : "Total Kehadiran Keseluruhan"}</CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select value={selectedMapel} onValueChange={(val) => setSelectedMapel(val || "Semua Mata Pelajaran")}>
+                        <SelectTrigger className="w-[200px] h-9 text-sm">
+                          <SelectValue placeholder="Pilih Mata Pelajaran" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Semua Mata Pelajaran">Semua Mata Pelajaran</SelectItem>
+                          {isWaliKelas && waliClasses.includes(selectedClass) && (
+                            <SelectItem value="Umum">Umum / Wali Kelas</SelectItem>
+                          )}
+                          {subjects.map((m, i) => (
+                            <SelectItem key={i} value={m}>{m}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Input
                         type="date"
                         value={selectedTanggal}

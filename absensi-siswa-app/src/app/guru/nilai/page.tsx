@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -46,29 +46,64 @@ export default function GuruNilaiPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [isWaliKelas, setIsWaliKelas] = useState(false);
+  const [waliClasses, setWaliClasses] = useState<string[]>([]);
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/classes").then(r => r.json()),
-      fetch("/api/teachers/me/subjects").then(r => r.json()),
-      fetch("/api/spk/criteria").then(r => r.json()),
-    ]).then(([classesData, subjectsRes, criteriaData]) => {
-      setClasses(classesData);
-      if (classesData.length > 0) setSelectedKelas(classesData[0].namaKelas);
-      
-      const manualCriteria = criteriaData.filter((c: CriteriaRow) => c.tipe === "Manual" || c.namaKriteria === "Nilai Akademik");
-      setCriteria(manualCriteria);
-      if (manualCriteria.length > 0) setSelectedCriteria(manualCriteria[0].id);
+      fetch("/api/classes").then((r) => r.json()),
+      fetch("/api/teachers/me/subjects")
+        .then((r) => r.json())
+        .catch(() => ({ isWaliKelas: false, waliClasses: [], classes: [], subjects: [] })),
+      fetch("/api/spk/criteria").then((r) => r.json()),
+    ])
+      .then(([classesData, subjectsRes, criteriaData]) => {
+        const isWali = subjectsRes.isWaliKelas || false;
+        const wClasses = subjectsRes.waliClasses || [];
+        const assignedClasses = subjectsRes.classes || [];
 
-      // API returns { subjects, isWaliKelas, waliClasses }
-      const subjectsData = subjectsRes?.subjects || (Array.isArray(subjectsRes) ? subjectsRes : []);
-      if (Array.isArray(subjectsData) && subjectsData.length > 0) {
-        setSubjects(subjectsData);
-        setSelectedMapel(subjectsData[0].namaMapel);
-      }
-    }).catch(() => toast.error("Gagal memuat preferensi guru"));
+        setIsWaliKelas(isWali);
+        setWaliClasses(wClasses);
+
+        // Filter out classes that are not assigned to this teacher
+        const filteredClasses = classesData.filter((c: KelasRow) => assignedClasses.includes(c.namaKelas));
+        setClasses(filteredClasses);
+
+        const firstClass = filteredClasses.length > 0 ? filteredClasses[0].namaKelas : "";
+        if (firstClass) setSelectedKelas(firstClass);
+
+        const manualCriteria = criteriaData.filter(
+          (c: CriteriaRow) => c.tipe === "Manual" || c.namaKriteria.toLowerCase().includes("akademik")
+        );
+        setCriteria(manualCriteria);
+        if (manualCriteria.length > 0) setSelectedCriteria(manualCriteria[0].id);
+
+        const subjectsData = subjectsRes.subjects || [];
+        if (Array.isArray(subjectsData) && subjectsData.length > 0) {
+          setSubjects(subjectsData);
+          if (!isWali || !wClasses.includes(firstClass)) {
+            setSelectedMapel(subjectsData[0].namaMapel);
+          } else {
+            setSelectedMapel("Umum");
+          }
+        } else if (!isWali || !wClasses.includes(firstClass)) {
+          setSelectedMapel("");
+        }
+      })
+      .catch(() => toast.error("Gagal memuat preferensi guru"));
   }, []);
+
+  // Handle Mapel Reset when Class changes
+  useEffect(() => {
+    if (selectedKelas && selectedMapel === "Umum" && !waliClasses.includes(selectedKelas)) {
+      if (subjects.length > 0) {
+        setSelectedMapel(subjects[0].namaMapel);
+      } else {
+        setSelectedMapel("");
+      }
+    }
+  }, [selectedKelas, selectedMapel, waliClasses, subjects]);
 
   const handleLoad = useCallback(async () => {
     if (!selectedKelas || !selectedCriteria) return;
@@ -78,7 +113,7 @@ export default function GuruNilaiPage() {
       if (!res.ok) throw new Error("Gagal load nilai");
       const data: { categories: string[], students: ScoreStudent[] } = await res.json();
       
-      const isAka = criteria.find(c => c.id === selectedCriteria)?.namaKriteria === "Nilai Akademik";
+      const isAka = criteria.find(c => c.id === selectedCriteria)?.namaKriteria.toLowerCase().includes("akademik");
       let fetchedCats = data.categories || [];
       if (!isAka) {
          fetchedCats = ["Nilai"];
@@ -101,7 +136,7 @@ export default function GuruNilaiPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedKelas, selectedCriteria, selectedMapel]);
+  }, [selectedKelas, selectedCriteria, selectedMapel, criteria]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -191,7 +226,7 @@ export default function GuruNilaiPage() {
      return Math.round(sum / categories.length);
   };
 
-  const isAkademik = criteria.find(c => c.id === selectedCriteria)?.namaKriteria === "Nilai Akademik";
+  const isAkademik = criteria.find(c => c.id === selectedCriteria)?.namaKriteria.toLowerCase().includes("akademik");
 
   return (
     <div className="space-y-6">
@@ -221,7 +256,9 @@ export default function GuruNilaiPage() {
               <Select value={selectedMapel} onValueChange={(val: string | null) => val && setSelectedMapel(val)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Umum">Umum / Semua Mapel</SelectItem>
+                  {isWaliKelas && waliClasses.includes(selectedKelas) && (
+                    <SelectItem value="Umum">Umum / Semua Mapel</SelectItem>
+                  )}
                   {subjects.map((s, i) => (
                     <SelectItem key={i} value={s.namaMapel}>{s.namaMapel}</SelectItem>
                   ))}
@@ -309,7 +346,7 @@ export default function GuruNilaiPage() {
                    } else {
                       toast.warning("Tidak ada NIS yang cocok dengan daftar di kelas ini.");
                    }
-                 } catch (err) {
+                 } catch {
                    toast.error("Gagal membaca file excel");
                  } finally {
                    setImporting(false);
@@ -323,13 +360,13 @@ export default function GuruNilaiPage() {
 
       {showGrid && (
         <>
-          <div className="flex justify-between items-end">
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-4">
              {isAkademik ? (
-               <div className="flex gap-2 items-end">
-                  <div className="space-y-2">
+               <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-end w-full xl:w-auto">
+                  <div className="space-y-2 w-full sm:w-auto">
                      <Label>Kategori Nilai</Label>
                      <Select value={newCat} onValueChange={(val) => val && setNewCat(val)}>
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-full sm:w-[180px]">
                            <SelectValue placeholder="Pilih Kategori" />
                         </SelectTrigger>
                         <SelectContent>
@@ -339,14 +376,14 @@ export default function GuruNilaiPage() {
                         </SelectContent>
                      </Select>
                   </div>
-                  <Button variant="secondary" className="gap-2 border border-slate-200" onClick={handleAddCategory} disabled={!newCat}>
+                  <Button variant="secondary" className="gap-2 border border-slate-200 w-full sm:w-auto" onClick={handleAddCategory} disabled={!newCat}>
                      <Plus className="h-4 w-4" /> Tambah Kategori
                   </Button>
                </div>
              ) : (
-               <div className="flex gap-2 items-end"></div>
+               <div className="hidden xl:block"></div>
              )}
-             <div className="flex justify-end gap-2 items-end">
+             <div className="flex flex-wrap justify-start xl:justify-end gap-2 items-center w-full xl:w-auto">
                 <Button variant="outline" className="border-emerald-200 text-emerald-600 hover:bg-emerald-50" onClick={() => {
                     const dataToExport = siswaList.map(s => {
                        const row: Record<string, string | number> = {
@@ -415,13 +452,12 @@ export default function GuruNilaiPage() {
 
           <Card>
             <CardContent className="p-0">
-               {categories.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center p-12 text-slate-500">
-                     <BookOpen className="h-10 w-10 mb-4 text-slate-300" />
-                     <h3 className="font-semibold text-slate-700">Belum ada Kategori</h3>
+               {categories.length === 0 && (
+                  <div className="flex flex-col items-center justify-center p-6 text-slate-500 bg-muted/10 border-b">
+                     <BookOpen className="h-6 w-6 mb-2 text-slate-400" />
                      <p className="text-sm">Anda harus menambahkan setidaknya 1 kategori (Tugas, UTS, dsb) untuk mengisi nilai!</p>
                   </div>
-               ) : (
+               )}
                  <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
@@ -492,7 +528,6 @@ export default function GuruNilaiPage() {
                       </tbody>
                     </table>
                  </div>
-               )}
             </CardContent>
           </Card>
 

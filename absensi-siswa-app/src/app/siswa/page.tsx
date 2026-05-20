@@ -243,10 +243,10 @@ export default function SiswaDashboard() {
                       tick={{ fontSize: 11, fill: "#64748B" }}
                       axisLine={false}
                       tickLine={false}
-                      interval={chartData.length > 15 ? Math.floor(chartData.length / 8) : 0}
-                      angle={chartData.length > 10 ? -35 : 0}
-                      textAnchor={chartData.length > 10 ? "end" : "middle"}
-                      height={chartData.length > 10 ? 50 : 30}
+                      interval={chartData.length > 8 ? Math.floor(chartData.length / 6) : 0}
+                      angle={chartData.length > 5 ? -45 : 0}
+                      textAnchor={chartData.length > 5 ? "end" : "middle"}
+                      height={chartData.length > 5 ? 60 : 30}
                     />
                     <YAxis
                       tick={{ fontSize: 12, fill: "#64748B" }}

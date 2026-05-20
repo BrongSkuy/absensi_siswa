@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { teachers, teacherClasses, teacherSubjects, classes } from "@/db/schema";
-import { eq } from "drizzle-orm";
+
 
 async function checkAssignments() {
   const allTeachers = await db.select().from(teachers).all();

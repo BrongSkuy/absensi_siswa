@@ -95,7 +95,7 @@ export default function AdminProfilPage() {
               <p className="font-medium">Informasi Kata Sandi:</p>
               <ul className="list-disc pl-5 mt-1 space-y-1">
                 <li>Demi keamanan, sistem tidak dapat menampilkan kata sandi Anda saat ini.</li>
-                <li>Sandi bawaan (default) pengguna baru biasanya sama dengan Username (NIS/NIP) atau "admin123".</li>
+                <li>Sandi bawaan (default) pengguna baru biasanya sama dengan Username (NIS/NIP) atau &quot;admin123&quot;.</li>
               </ul>
             </div>
             <form onSubmit={handlePasswordChange} className="space-y-4">

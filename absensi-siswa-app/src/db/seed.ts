@@ -4,18 +4,24 @@
  *
  * Run: npx tsx src/db/seed.ts
  */
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username, admin } from "better-auth/plugins";
 import * as schema from "./schema";
 import * as authSchema from "./auth-schema";
+import * as dotenv from "dotenv";
 
-// --- Setup local DB + Auth instance for seeding ---
-const sqlite = new Database("sqlite.db");
-sqlite.pragma("journal_mode = WAL");
-const db = drizzle(sqlite, { schema: { ...schema, ...authSchema } });
+// Load environment variables
+dotenv.config();
+
+// --- Setup Turso DB + Auth instance for seeding ---
+const client = createClient({
+  url: process.env.TURSO_DATABASE_URL!,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
+const db = drizzle(client, { schema: { ...schema, ...authSchema } });
 
 const auth = betterAuth({
   baseURL: "http://localhost:3000",
@@ -51,7 +57,10 @@ async function seed() {
         appRole: "ADMIN",
       },
     });
-    sqlite.prepare("UPDATE user SET role = ? WHERE id = ?").run("admin", adminUser.user.id);
+    await client.execute({
+      sql: "UPDATE user SET role = ? WHERE id = ?",
+      args: ["admin", adminUser.user.id],
+    });
     console.log(`   ✅ Admin: admin001 / admin123`);
   } catch {
     console.log(`   ⏭️ Admin already exists, skipping...`);
@@ -79,12 +88,12 @@ async function seed() {
         },
       });
 
-      db.insert(schema.teachers).values({
+      await db.insert(schema.teachers).values({
         userId: user.user.id,
         nip: t.nip,
         namaLengkap: t.nama,
         status: "aktif",
-      }).run();
+      });
 
       console.log(`   ✅ Guru: ${t.nip} / guru1234 — ${t.nama}`);
     } catch {
@@ -104,7 +113,7 @@ async function seed() {
 
   for (const k of kelasData) {
     try {
-      db.insert(schema.classes).values(k).run();
+      await db.insert(schema.classes).values(k);
       console.log(`   ✅ Kelas: ${k.namaKelas} — Wali: ${k.waliKelas}`);
     } catch {
       console.log(`   ⏭️ Kelas ${k.namaKelas} already exists, skipping...`);
@@ -115,7 +124,7 @@ async function seed() {
   // 4. Teacher-Class assignments
   // ==========================================
   console.log("\n📋 Assigning teachers to classes...");
-  const allTeachers = db.select().from(schema.teachers).all();
+  const allTeachers = await db.select().from(schema.teachers);
   const classAssignments = [
     { nip: "197601012005", kelas: "X-A" },
     { nip: "197601012005", kelas: "XI-A" },
@@ -129,10 +138,10 @@ async function seed() {
     const teacher = allTeachers.find((t) => t.nip === ca.nip);
     if (teacher) {
       try {
-        db.insert(schema.teacherClasses).values({
+        await db.insert(schema.teacherClasses).values({
           teacherId: teacher.id,
           kelas: ca.kelas,
-        }).run();
+        });
         console.log(`   ✅ ${ca.nip} → ${ca.kelas}`);
       } catch {
         console.log(`   ⏭️ ${ca.nip} → ${ca.kelas} already exists, skipping...`);
@@ -156,10 +165,10 @@ async function seed() {
     const teacher = allTeachers.find((t) => t.nip === sa.nip);
     if (teacher) {
       try {
-        db.insert(schema.teacherSubjects).values({
+        await db.insert(schema.teacherSubjects).values({
           teacherId: teacher.id,
           namaMapel: sa.mapel,
-        }).run();
+        });
         console.log(`   ✅ ${sa.nip} → ${sa.mapel}`);
       } catch {
         console.log(`   ⏭️ ${sa.nip} → ${sa.mapel} already exists, skipping...`);
@@ -206,7 +215,7 @@ async function seed() {
         },
       });
 
-      const result = db.insert(schema.students).values({
+      const result = await db.insert(schema.students).values({
         userId: user.user.id,
         nis: s.nis,
         namaLengkap: s.nama,
@@ -214,9 +223,11 @@ async function seed() {
         angkatan: "2024",
         jenisKelamin: s.jk,
         status: "aktif",
-      }).returning().get();
+      }).returning();
 
-      createdStudentIds.push({ nis: s.nis, studentId: result.id });
+      if (result[0]) {
+        createdStudentIds.push({ nis: s.nis, studentId: result[0].id });
+      }
       console.log(`   ✅ Siswa: ${s.nis} / ${s.nis} — ${s.nama} (${s.kelas})`);
     } catch {
       console.log(`   ⏭️ Siswa ${s.nis} already exists, skipping...`);
@@ -237,7 +248,7 @@ async function seed() {
 
   for (const m of mapelData) {
     try {
-      db.insert(schema.subjects).values(m).run();
+      await db.insert(schema.subjects).values(m);
       console.log(`   ✅ Mapel: ${m.namaMapel} — ${m.guruPengampu}`);
     } catch {
       console.log(`   ⏭️ Mapel ${m.namaMapel} already exists, skipping...`);
@@ -258,7 +269,7 @@ async function seed() {
 
   for (const k of kriteria) {
     try {
-      db.insert(schema.spkCriteria).values(k).run();
+      await db.insert(schema.spkCriteria).values(k);
       console.log(`   ✅ Kriteria: ${k.namaKriteria} (${k.bobot}%)`);
     } catch {
       console.log(`   ⏭️ Kriteria ${k.namaKriteria} already exists, skipping...`);
@@ -270,11 +281,11 @@ async function seed() {
   // ==========================================
   console.log("\n📅 Creating Academic Year...");
   try {
-    db.insert(schema.academicYears).values({
+    await db.insert(schema.academicYears).values({
       tahunAjaran: "2025/2026",
       semester: "Genap",
       isActive: true,
-    }).run();
+    });
     console.log("   ✅ 2025/2026 Genap (Active)");
   } catch {
     console.log("   ⏭️ Academic Year already exists, skipping...");
@@ -289,7 +300,7 @@ async function seed() {
     // Generate attendance for last 10 school days
     const today = new Date();
     const schoolDays: string[] = [];
-    let d = new Date(today.getTime());
+    const d = new Date(today.getTime());
     while (schoolDays.length < 10) {
       d.setDate(d.getDate() - 1);
       const dayOfWeek = d.getDay();
@@ -304,13 +315,13 @@ async function seed() {
         const rand = Math.random();
         const status = rand < 0.80 ? "Hadir" : rand < 0.87 ? "Izin" : rand < 0.94 ? "Sakit" : "Alfa";
         try {
-          db.insert(schema.attendance).values({
+          await db.insert(schema.attendance).values({
             studentId: sid.studentId,
             tanggal,
             mapel: "Umum",
             status,
             periode: "2025/2026-Genap",
-          }).run();
+          });
         } catch {
           // skip duplicates
         }
@@ -324,18 +335,18 @@ async function seed() {
   // ==========================================
   console.log("\n🏆 Creating demo SPK scores...");
   if (createdStudentIds.length > 0) {
-    const allCriteria = db.select().from(schema.spkCriteria).all();
+    const allCriteria = await db.select().from(schema.spkCriteria);
     for (const sid of createdStudentIds) {
       for (const crit of allCriteria) {
         if (crit.tipe === "Otomatis") continue; // Kehadiran is auto-calculated
         const nilai = Math.floor(Math.random() * 30) + 70; // 70-99
         try {
-          db.insert(schema.spkScores).values({
+          await db.insert(schema.spkScores).values({
             studentId: sid.studentId,
             criteriaId: crit.id,
             nilai,
             periode: "2025/2026-Genap",
-          }).run();
+          });
         } catch {
           // skip duplicates
         }
@@ -357,8 +368,6 @@ async function seed() {
   console.log("Siswa  : 2024002 / 2024002 (Dewi Lestari, X-A)");
   console.log("...dan 13 siswa lainnya (NIS = password)");
   console.log("=========================\n");
-
-  sqlite.close();
 }
 
 seed().catch((err) => {
