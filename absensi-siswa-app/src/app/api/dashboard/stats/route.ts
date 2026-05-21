@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { students, teachers, attendance } from "@/db/schema";
-import { eq, sql, count } from "drizzle-orm";
+import { students, teachers, attendance, academicYears } from "@/db/schema";
+import { eq, sql, count, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -24,34 +24,44 @@ export async function GET() {
     .from(teachers)
     .where(eq(teachers.status, "aktif"));
 
+  // Get active period
+  const [activeYear] = await db
+    .select()
+    .from(academicYears)
+    .where(eq(academicYears.isActive, true));
+  const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2025/2026-Genap";
+
   // Today's attendance percentage
   const today = new Date().toLocaleDateString('en-CA'); // Get YYYY-MM-DD
   const [todayAttendance] = await db
     .select({ count: count() })
     .from(attendance)
-    .where(eq(attendance.tanggal, today));
+    .where(
+      sql`${attendance.tanggal} = ${today} AND ${attendance.periode} = ${periode}`
+    );
 
   const [todayHadir] = await db
     .select({ count: count() })
     .from(attendance)
     .where(
-      sql`${attendance.tanggal} = ${today} AND ${attendance.status} = 'Hadir'`
+      sql`${attendance.tanggal} = ${today} AND ${attendance.status} = 'Hadir' AND ${attendance.periode} = ${periode}`
     );
 
   const kehadiranPersen = todayAttendance.count > 0
     ? Math.round((todayHadir.count / todayAttendance.count) * 100)
     : 0;
 
-  // All-time attendance trend (grouped by date)
+  // All-time attendance trend (grouped by date) for the active period
   const allDates = await db
     .select({ tanggal: attendance.tanggal })
     .from(attendance)
+    .where(eq(attendance.periode, periode))
     .groupBy(attendance.tanggal)
     .orderBy(sql`${attendance.tanggal} ASC`);
 
   const weeklyAttendance = [];
   for (const row of allDates) {
-    const records = await db.select().from(attendance).where(eq(attendance.tanggal, row.tanggal));
+    const records = await db.select().from(attendance).where(sql`${attendance.tanggal} = ${row.tanggal} AND ${attendance.periode} = ${periode}`);
     const hadir = records.filter((r) => r.status === "Hadir").length;
     const izin = records.filter((r) => r.status === "Izin").length;
     const sakit = records.filter((r) => r.status === "Sakit").length;
@@ -68,7 +78,7 @@ export async function GET() {
     totalSiswa: studentCount.count,
     totalGuru: teacherCount.count,
     kehadiranHariIni: kehadiranPersen,
-    tahunAjaran: "-",
+    tahunAjaran: periode,
     weeklyAttendance,
   });
 }

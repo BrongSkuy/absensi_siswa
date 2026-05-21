@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { teachers, teacherClasses, classes, attendance, students, teacherSubjects } from "@/db/schema";
+import { teachers, teacherClasses, classes, attendance, students, teacherSubjects, academicYears } from "@/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -24,6 +24,13 @@ export async function GET() {
       .select()
       .from(teachers)
       .where(eq(teachers.userId, session.user.id));
+
+    // Get active period
+    const [activeYear] = await db
+      .select()
+      .from(academicYears)
+      .where(eq(academicYears.isActive, true));
+    const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2025/2026-Genap";
 
     let assignedClasses: { id: string; namaKelas: string; tingkat: string; waliKelas: string | null; subjects: string[] }[] = [];
     let teacherSubjectNames: string[] = [];
@@ -62,7 +69,12 @@ export async function GET() {
             .select({ kelas: students.kelas })
             .from(attendance)
             .innerJoin(students, eq(attendance.studentId, students.id))
-            .where(inArray(attendance.mapel, teacherSubjectNames))
+            .where(
+               and(
+                 inArray(attendance.mapel, teacherSubjectNames),
+                 eq(attendance.periode, periode)
+               )
+            )
             .all();
          attendedKelasNames = [...new Set(attRows.map(r => r.kelas))];
       }
@@ -158,7 +170,12 @@ export async function GET() {
           .select({ status: attendance.status })
           .from(attendance)
           .innerJoin(students, eq(attendance.studentId, students.id))
-          .where(inArray(students.kelas, classNames.length > 0 ? classNames : ["__empty__"]))
+          .where(
+             and(
+               inArray(students.kelas, classNames.length > 0 ? classNames : ["__empty__"]),
+               eq(attendance.periode, periode)
+             )
+          )
           .all();
           
        if (properAtt.length > 0) {

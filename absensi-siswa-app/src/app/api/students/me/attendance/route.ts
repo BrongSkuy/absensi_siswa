@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { students, attendance } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { students, attendance, academicYears } from "@/db/schema";
+import { eq, desc, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -30,16 +30,29 @@ export async function GET() {
     );
   }
 
-  // Get all attendance records for this student, descending by date
+  // Get active period
+  const [activeYear] = await db
+    .select()
+    .from(academicYears)
+    .where(eq(academicYears.isActive, true));
+  const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2025/2026-Genap";
+
+  // Get all attendance records for this student, descending by date, filtered by period
   const allRecords = await db
     .select({
       id: attendance.id,
       tanggal: attendance.tanggal,
       mapel: attendance.mapel,
       status: attendance.status,
+      periode: attendance.periode,
     })
     .from(attendance)
-    .where(eq(attendance.studentId, student.id))
+    .where(
+      and(
+        eq(attendance.studentId, student.id),
+        eq(attendance.periode, periode)
+      )
+    )
     .orderBy(desc(attendance.tanggal))
     .all();
 

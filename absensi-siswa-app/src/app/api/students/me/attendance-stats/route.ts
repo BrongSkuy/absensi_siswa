@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { students, attendance } from "@/db/schema";
+import { students, attendance, academicYears } from "@/db/schema";
 import { eq, and, sql, count } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -30,11 +30,23 @@ export async function GET() {
     );
   }
 
-  // Get all attendance records for this student
+  // Get active period
+  const [activeYear] = await db
+    .select()
+    .from(academicYears)
+    .where(eq(academicYears.isActive, true));
+  const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2025/2026-Genap";
+
+  // Get all attendance records for this student in the active period
   const allRecords = await db
     .select()
     .from(attendance)
-    .where(eq(attendance.studentId, student.id));
+    .where(
+      and(
+        eq(attendance.studentId, student.id),
+        eq(attendance.periode, periode)
+      )
+    );
 
   // Count per status
   const totalHadir = allRecords.filter((r) => r.status === "Hadir").length;
