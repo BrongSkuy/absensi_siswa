@@ -36,6 +36,7 @@ export default function SiswaLeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<"umum" | "kelas">("umum");
   const [myData, setMyData] = useState<{ nama: string; kelas: string; studentId: string } | null>(null);
+  const [activePeriod, setActivePeriod] = useState<{ tahunAjaran: string; semester: string; periode: string } | null>(null);
   
   const [isPublished, setIsPublished] = useState<boolean>(true);
 
@@ -53,6 +54,21 @@ export default function SiswaLeaderboardPage() {
               profile = { nama: pData.namaLengkap, kelas: pData.kelas, studentId: pData.id };
               setMyData(profile);
            }
+        }
+
+        // Fetch active academic period
+        let currentPeriod = activePeriod;
+        if (!currentPeriod) {
+          try {
+            const periodRes = await fetch("/api/system/academic-years/active");
+            const periodData = await periodRes.json();
+            if (!periodData.error) {
+              currentPeriod = periodData;
+              setActivePeriod(periodData);
+            }
+          } catch (e) {
+            console.error("Gagal memuat periode aktif:", e);
+          }
         }
         
         // Determine the target class to calculate leaderboard
@@ -159,7 +175,7 @@ export default function SiswaLeaderboardPage() {
             </div>
 
             <p className="text-[11px] text-slate-400 italic mt-8 flex items-center justify-center gap-1">
-              <Calendar className="h-3.5 w-3.5" /> Periode Semester Aktif: 2024/2025-Genap
+              <Calendar className="h-3.5 w-3.5" /> Periode Semester Aktif: {activePeriod ? activePeriod.periode : "2024/2025-Genap"}
             </p>
           </Card>
         </div>
@@ -225,7 +241,9 @@ export default function SiswaLeaderboardPage() {
                   <CardTitle className="text-base">
                      {filterType === "umum" ? "Peringkat Keseluruhan (Semua Kelas)" : `Peringkat Kelas ${myData?.kelas}`}
                   </CardTitle>
-                  <CardDescription>Semester Genap 2024/2025</CardDescription>
+                  <CardDescription>
+                    Semester {activePeriod ? `${activePeriod.semester} ${activePeriod.tahunAjaran}` : "Genap 2024/2025"}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>
