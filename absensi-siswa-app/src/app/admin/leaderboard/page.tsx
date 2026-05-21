@@ -89,9 +89,15 @@ export default function AdminLeaderboardPage() {
     try {
       const r = await fetch("/api/spk/publish");
       const res = await r.json();
-      setPublishStatus(res);
+      if (!r.ok || res.error) {
+        console.error("Gagal mengambil status publikasi:", res.error || "Unknown error");
+        setPublishStatus(null);
+      } else {
+        setPublishStatus(res);
+      }
     } catch (e) {
       console.error("Gagal mengambil status publikasi", e);
+      setPublishStatus(null);
     }
   };
 
