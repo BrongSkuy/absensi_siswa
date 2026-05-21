@@ -89,15 +89,9 @@ export default function AdminLeaderboardPage() {
     try {
       const r = await fetch("/api/spk/publish");
       const res = await r.json();
-      if (!r.ok || res.error) {
-        console.error("Gagal mengambil status publikasi:", res.error || "Unknown error");
-        setPublishStatus(null);
-      } else {
-        setPublishStatus(res);
-      }
+      setPublishStatus(res);
     } catch (e) {
       console.error("Gagal mengambil status publikasi", e);
-      setPublishStatus(null);
     }
   };
 
@@ -410,23 +404,23 @@ export default function AdminLeaderboardPage() {
                     </AlertDialogHeader>
 
                     {/* Scrollable list */}
-                    <div className="my-4 border border-slate-100 rounded-lg max-h-[350px] overflow-y-auto overflow-x-hidden bg-slate-50/50">
-                      <Table className="w-full min-w-0 table-fixed">
+                    <div className="my-4 border border-slate-100 rounded-lg max-h-[300px] overflow-y-auto bg-slate-50/50">
+                      <Table>
                         <TableHeader className="bg-slate-100/70 sticky top-0 z-10">
                           <TableRow>
-                            <TableHead className="py-2.5 pl-3 w-[32%] whitespace-nowrap">Siswa</TableHead>
-                            <TableHead className="py-2.5 w-[13%] whitespace-nowrap">Kelas</TableHead>
-                            <TableHead className="py-2.5 w-[23%] whitespace-nowrap">Kriteria</TableHead>
-                            <TableHead className="py-2.5 pr-3 w-[32%] whitespace-nowrap">Status/Penyebab</TableHead>
+                            <TableHead className="py-2.5 pl-3">Siswa</TableHead>
+                            <TableHead className="py-2.5">Kelas</TableHead>
+                            <TableHead className="py-2.5">Kriteria</TableHead>
+                            <TableHead className="py-2.5 pr-3">Status/Penyebab</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {validation?.missing.map((item, idx) => (
                             <TableRow key={idx} className="hover:bg-amber-50/20 text-xs">
-                              <TableCell className="font-semibold py-2 pl-3 text-slate-800 whitespace-normal break-words">{item.studentName}</TableCell>
-                              <TableCell className="py-2 whitespace-normal break-words"><Badge variant="outline" className="px-1.5 py-0 text-[10px]">{item.kelas}</Badge></TableCell>
-                              <TableCell className="py-2 font-medium text-slate-700 whitespace-normal break-words">{item.criteriaName}</TableCell>
-                              <TableCell className="py-2 pr-3 text-amber-700 italic font-medium whitespace-normal break-words">{item.reason}</TableCell>
+                              <TableCell className="font-semibold py-2 pl-3 text-slate-800">{item.studentName}</TableCell>
+                              <TableCell className="py-2"><Badge variant="outline" className="px-1.5 py-0 text-[10px]">{item.kelas}</Badge></TableCell>
+                              <TableCell className="py-2 font-medium text-slate-700">{item.criteriaName}</TableCell>
+                              <TableCell className="py-2 pr-3 text-amber-700 italic font-mono">{item.reason}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

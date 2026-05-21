@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { students, teachers, attendance, academicYears } from "@/db/schema";
+import { students, teachers, attendance } from "@/db/schema";
 import { eq, sql, count } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -11,13 +11,6 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  // Get active academic year
-  const [activeYear] = await db
-    .select()
-    .from(academicYears)
-    .where(eq(academicYears.isActive, true));
-  const activePeriode = activeYear ? `${activeYear.semester} ${activeYear.tahunAjaran}` : "Genap 2024/2025";
 
   // Count active students
   const [studentCount] = await db
@@ -75,7 +68,7 @@ export async function GET() {
     totalSiswa: studentCount.count,
     totalGuru: teacherCount.count,
     kehadiranHariIni: kehadiranPersen,
-    tahunAjaran: activePeriode,
+    tahunAjaran: "-",
     weeklyAttendance,
   });
 }

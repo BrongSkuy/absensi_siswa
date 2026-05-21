@@ -43,21 +43,11 @@ export default function GuruLeaderboardPage() {
   const [activeTab, setActiveTab] = useState("umum");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<SpkResult[]>([]);
-  const [activePeriod, setActivePeriod] = useState<{ tahunAjaran: string; semester: string; periode: string } | null>(null);
   
   const [isPublished, setIsPublished] = useState<boolean>(true);
 
   useEffect(() => {
     fetch("/api/classes").then(r => r.json()).then(setClasses).catch(() => {});
-    
-    fetch("/api/system/academic-years/active")
-      .then(r => r.json())
-      .then(data => {
-        if (!data.error) {
-          setActivePeriod(data);
-        }
-      })
-      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -186,7 +176,7 @@ export default function GuruLeaderboardPage() {
             </div>
 
             <p className="text-[11px] text-slate-400 italic mt-8 flex items-center justify-center gap-1">
-              <Calendar className="h-3.5 w-3.5" /> Periode Semester Aktif: {activePeriod ? activePeriod.periode : "2024/2025-Genap"}
+              <Calendar className="h-3.5 w-3.5" /> Periode Semester Aktif: 2024/2025-Genap
             </p>
           </Card>
         </div>
@@ -234,9 +224,7 @@ export default function GuruLeaderboardPage() {
           <Card className="print-area md:col-span-3">
             <CardHeader>
               <CardTitle className="text-base">Peringkat Semester Aktif</CardTitle>
-              <CardDescription>
-                Semester {activePeriod ? `${activePeriod.semester} ${activePeriod.tahunAjaran}` : "Genap 2024/2025"}
-              </CardDescription>
+              <CardDescription>Semester Genap 2024/2025</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab}>
