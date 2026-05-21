@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { spkScores, students, spkCriteria, attendance, academicYears } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { spkScores, students, spkCriteria, attendance, academicYears, teacherClasses, teacherSubjects, classes as classesTable } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export async function calculateSPK(kelas: string, targetPeriode?: string) {
   // 1. Fetch Students
@@ -144,6 +144,12 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
   // 5. Fetch Attendance filtered by active period
   const allAttendance = await db.select().from(attendance).where(eq(attendance.periode, activePeriode)).all();
 
+  // 6. Fetch metadata for strict validation
+  const classNames = [...new Set(siswaKelas.map(s => s.kelas))];
+  const classMeta = await db.select().from(classesTable).all();
+  const allTeacherClasses = await db.select().from(teacherClasses).all();
+  const allTeacherSubjects = await db.select().from(teacherSubjects).all();
+
   const missingEntries: Array<{
     studentId: string;
     studentName: string;
@@ -153,34 +159,60 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
     reason: string;
   }> = [];
 
-  for (const s of siswaKelas) {
-    for (const c of criteriaList) {
-      if (c.tipe === "Otomatis" && c.namaKriteria.toLowerCase().includes("kehadiran")) {
-        // Check if student has any attendance recorded in this period
-        const sAtt = allAttendance.filter(a => a.studentId === s.id && a.status !== null);
-        if (sAtt.length === 0) {
-          missingEntries.push({
-            studentId: s.id,
-            studentName: s.namaLengkap,
-            kelas: s.kelas,
-            criteriaId: c.id,
-            criteriaName: c.namaKriteria,
-            reason: "Belum ada data absensi tercatat"
-          });
-        }
-      } else {
-        // Manual criteria: check if student has a score for this criteria in the period
-        const hasScore = allScores.some(sc => sc.studentId === s.id && sc.criteriaId === c.id);
-        if (!hasScore) {
-          missingEntries.push({
-            studentId: s.id,
-            studentName: s.namaLengkap,
-            kelas: s.kelas,
-            criteriaId: c.id,
-            criteriaName: c.namaKriteria,
-            reason: "Nilai belum diinput oleh guru"
-          });
-        }
+  for (const cName of classNames) {
+    const requiredMapels = new Set<string>();
+    
+    // Add "Umum" if class has Wali Kelas
+    const classInfo = classMeta.find(c => c.namaKelas === cName);
+    if (classInfo?.waliKelas) {
+      requiredMapels.add("Umum");
+    }
+
+    // Add subjects taught by teachers assigned to this class
+    const assignedTeachers = allTeacherClasses.filter(tc => tc.kelas === cName);
+    for (const at of assignedTeachers) {
+      const subjectsForTeacher = allTeacherSubjects.filter(ts => ts.teacherId === at.teacherId);
+      subjectsForTeacher.forEach(ts => requiredMapels.add(ts.namaMapel));
+    }
+
+    // Get students in this class
+    const studentsInThisClass = siswaKelas.filter(s => s.kelas === cName);
+
+    // Validate each required subject
+    for (const mapel of Array.from(requiredMapels)) {
+      
+      // Check Attendance (Otomatis)
+      const hasAttendanceForClass = allAttendance.some(
+        a => studentsInThisClass.some(s => s.id === a.studentId) && a.mapel === mapel
+      );
+
+      if (!hasAttendanceForClass) {
+        missingEntries.push({
+          studentId: "ALL",
+          studentName: "Semua Siswa",
+          kelas: cName,
+          criteriaId: "attendance",
+          criteriaName: "Kehadiran",
+          reason: `Guru mapel ${mapel} belum mengisi absensi sama sekali`
+        });
+      }
+
+      // Check Scores (Manual)
+      // A teacher for a mapel should submit at least one score for any manual criteria
+      // Because some mapels only submit "Nilai Akademik", we just check if there is ANY score for this mapel in this class.
+      const hasScoreForClass = allScores.some(
+        sc => studentsInThisClass.some(s => s.id === sc.studentId) && (sc.mapel === mapel || (mapel === "Umum" && !sc.mapel))
+      );
+      
+      if (!hasScoreForClass) {
+        missingEntries.push({
+          studentId: "ALL",
+          studentName: "Semua Siswa",
+          kelas: cName,
+          criteriaId: "scores",
+          criteriaName: "Penilaian Manual",
+          reason: `Guru mapel ${mapel} belum mengisi nilai kriteria sama sekali`
+        });
       }
     }
   }
