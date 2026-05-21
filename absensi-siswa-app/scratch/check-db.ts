@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { teachers, teacherClasses, teacherSubjects, classes } from "@/db/schema";
+import { db } from "../src/db/index";
+import { teachers, teacherClasses, teacherSubjects, classes } from "../src/db/schema";
 
 
 async function checkAssignments() {

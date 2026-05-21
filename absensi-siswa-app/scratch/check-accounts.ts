@@ -1,6 +1,6 @@
-import { db } from "@/db";
-import { students } from "@/db/schema";
-import { user } from "@/db/auth-schema";
+import { db } from "../src/db/index";
+import { students } from "../src/db/schema";
+import { user } from "../src/db/auth-schema";
 
 interface DBUser {
   id: string;

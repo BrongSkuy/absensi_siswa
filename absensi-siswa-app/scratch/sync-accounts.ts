@@ -1,6 +1,6 @@
-import { db } from "@/db";
-import { user } from "@/db/auth-schema";
-import { students, teachers } from "@/db/schema";
+import { db } from "../src/db";
+import { user } from "../src/db/auth-schema";
+import { students, teachers } from "../src/db/schema";
 import { eq } from "drizzle-orm";
 
 interface DBUser {
