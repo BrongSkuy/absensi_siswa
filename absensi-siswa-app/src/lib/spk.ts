@@ -148,7 +148,7 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
   const classNames = [...new Set(siswaKelas.map(s => s.kelas))];
   const classMeta = await db.select().from(classesTable).all();
   const allTeacherClasses = await db.select().from(teacherClasses).all();
-  const allTeacherSubjects = await db.select().from(teacherSubjects).all();
+  const allTeacherSubjects = await db.select().from(teacherSubjects).where(eq(teacherSubjects.periode, activePeriode)).all();
 
   const missingEntries: Array<{
     studentId: string;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { students, teachers, attendance, spkScores, teacherClasses, teacherSubjects, spkGradingCategories, classes, subjects } from "@/db/schema";
+import { students, teachers, attendance, spkScores, teacherClasses, teacherSubjects, spkGradingCategories, classes, subjects, spkResults, spkPublishStatus } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -13,6 +13,8 @@ export async function POST() {
 
   try {
     // Delete in order to avoid FK issues (most dependent first)
+    await db.delete(spkResults);
+    await db.delete(spkPublishStatus);
     await db.delete(spkGradingCategories);
     await db.delete(spkScores);
     await db.delete(attendance);
