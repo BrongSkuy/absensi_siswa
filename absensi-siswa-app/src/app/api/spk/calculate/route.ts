@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     if (isAdmin) {
       const results = await calculateSPK(kelas, activePeriode);
       const validation = await validateSPKCriteriaFilled(kelas, activePeriode);
-      return NextResponse.json({ results, validation });
+      return NextResponse.json({ results, validation, activePeriode });
     }
 
     // 3. Handle non-admin role (Students / Teachers) -> strict non-real-time cached view
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const isPublished = pubStatus?.isPublished ?? false;
 
     if (!isPublished) {
-      return NextResponse.json({ isPublished: false, error: "Leaderboard belum dipublikasikan oleh pihak sekolah." });
+      return NextResponse.json({ isPublished: false, error: "Leaderboard belum dipublikasikan oleh pihak sekolah.", activePeriode });
     }
 
     // Fetch from published cache
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
           detailRaw
         };
       });
-      return NextResponse.json(mapped);
+      return NextResponse.json({ isPublished: true, data: mapped, activePeriode });
     } else {
       // Return global rankings
       finalResults.sort((a, b) => a.rank - b.rank);
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
           detailRaw
         };
       });
-      return NextResponse.json(mapped);
+      return NextResponse.json({ isPublished: true, data: mapped, activePeriode });
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Gagal memproses SPK";

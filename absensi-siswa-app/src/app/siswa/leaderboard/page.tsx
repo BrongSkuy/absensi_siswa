@@ -38,6 +38,7 @@ export default function SiswaLeaderboardPage() {
   const [myData, setMyData] = useState<{ nama: string; kelas: string; studentId: string } | null>(null);
   
   const [isPublished, setIsPublished] = useState<boolean>(true);
+  const [activePeriodeName, setActivePeriodeName] = useState<string>("Sedang memuat...");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -61,12 +62,17 @@ export default function SiswaLeaderboardPage() {
         const spkRes = await fetch(`/api/spk/calculate?kelas=${encodeURIComponent(targetKelas)}`);
         const spkData = await spkRes.json();
         
+        if (spkData.activePeriode) {
+           const formattedPeriode = spkData.activePeriode.replace('-', ' - ');
+           setActivePeriodeName(formattedPeriode);
+        }
+
         if (spkData.isPublished === false) {
            setIsPublished(false);
         } else {
            setIsPublished(true);
-           if (Array.isArray(spkData)) {
-             setData(spkData);
+           if (spkData.data && Array.isArray(spkData.data)) {
+             setData(spkData.data);
            } else {
              setData([]);
            }
@@ -159,7 +165,7 @@ export default function SiswaLeaderboardPage() {
             </div>
 
             <p className="text-[11px] text-slate-400 italic mt-8 flex items-center justify-center gap-1">
-              <Calendar className="h-3.5 w-3.5" /> Periode Semester Aktif: 2024/2025-Genap
+              <Calendar className="h-3.5 w-3.5" /> Periode Semester Aktif: {activePeriodeName}
             </p>
           </Card>
         </div>
@@ -225,7 +231,7 @@ export default function SiswaLeaderboardPage() {
                   <CardTitle className="text-base">
                      {filterType === "umum" ? "Peringkat Keseluruhan (Semua Kelas)" : `Peringkat Kelas ${myData?.kelas}`}
                   </CardTitle>
-                  <CardDescription>Semester Genap 2024/2025</CardDescription>
+                  <CardDescription>Semester {activePeriodeName.split(" - ")[1]} {activePeriodeName.split(" - ")[0]}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>

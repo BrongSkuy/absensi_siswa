@@ -45,6 +45,8 @@ export default function GuruLeaderboardPage() {
   const [data, setData] = useState<SpkResult[]>([]);
   
   const [isPublished, setIsPublished] = useState<boolean>(true);
+  const [kelasData, setKelasData] = useState<string[]>([]);
+  const [activePeriodeName, setActivePeriodeName] = useState<string>("Sedang memuat...");
 
   useEffect(() => {
     fetch("/api/classes").then(r => r.json()).then(setClasses).catch(() => {});
@@ -56,13 +58,24 @@ export default function GuruLeaderboardPage() {
       try {
         const targetKelas = activeTab === "umum" || activeTab === "kelas" || activeTab === "angkatan" ? "umum" : activeTab;
         const res = await fetch(`/api/spk/calculate?kelas=${encodeURIComponent(targetKelas)}`);
-        const dataJson = await res.json();
+        const spkData = await res.json();
         
-        if (dataJson.isPublished === false) {
-          setIsPublished(false);
+        if (spkData.activePeriode) {
+           const formattedPeriode = spkData.activePeriode.replace('-', ' - ');
+           setActivePeriodeName(formattedPeriode);
+        }
+
+        if (spkData.isPublished === false) {
+           setIsPublished(false);
         } else {
-          setIsPublished(true);
-          setData(dataJson);
+           setIsPublished(true);
+           if (spkData.data && Array.isArray(spkData.data)) {
+             setData(spkData.data);
+             const classes = Array.from(new Set(spkData.data.map((item: any) => item.kelas))) as string[];
+             setKelasData(classes.sort());
+           } else {
+             setData([]);
+           }
         }
       } catch {
         toast.error("Gagal memuat SPK");
@@ -126,12 +139,10 @@ export default function GuruLeaderboardPage() {
       `}} />
 
       {!isPublished ? (
-        // Beautiful premium lock screen for Teachers
         <div className="flex flex-col items-center justify-center py-12 px-4 md:py-20 relative">
           <div className="absolute inset-0 bg-gradient-to-tr from-indigo-50/15 via-white to-navy-50/5 pointer-events-none rounded-2xl" />
           
           <Card className="max-w-2xl w-full border border-slate-100 bg-white/80 backdrop-blur-xl shadow-xl shadow-slate-100/40 overflow-hidden relative p-8 md:p-12 text-center rounded-2xl">
-            {/* Glowing lock/trophy visual for teachers */}
             <div className="relative mx-auto mb-8 w-24 h-24 flex items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-50 to-indigo-100/80 border border-indigo-200/50 lock-pulse shadow-sm">
               <Trophy className="h-12 w-12 text-indigo-500" />
               <div className="absolute -bottom-1 -right-1 bg-gradient-to-br from-slate-700 to-slate-900 border border-white text-white p-2 rounded-xl shadow-md">
@@ -151,7 +162,6 @@ export default function GuruLeaderboardPage() {
               Hasil kalkulasi Sistem Pendukung Keputusan (SPK) SAW penentuan siswa terbaik saat ini dalam status draf dan belum dirilis oleh Admin. Hasil resmi akan muncul secara otomatis setelah dipublikasikan oleh sekolah.
             </p>
 
-            {/* Academic Integrity checklist mockup */}
             <div className="border border-slate-100 rounded-xl bg-slate-50/50 p-6 text-left max-w-md mx-auto space-y-3.5">
               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-slate-400" /> Alur Validasi Sekolah
@@ -176,13 +186,12 @@ export default function GuruLeaderboardPage() {
             </div>
 
             <p className="text-[11px] text-slate-400 italic mt-8 flex items-center justify-center gap-1">
-              <Calendar className="h-3.5 w-3.5" /> Periode Semester Aktif: 2024/2025-Genap
+              <Calendar className="h-3.5 w-3.5" /> Periode Semester Aktif: {activePeriodeName}
             </p>
           </Card>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-3">
-          {/* Top 3 Cards */}
           {data.length > 0 && !loading && (
             <div className="md:col-span-3 grid gap-4 sm:grid-cols-3 hide-on-print">
               {data.slice(0, 3).map((student, i) => (
@@ -223,8 +232,10 @@ export default function GuruLeaderboardPage() {
 
           <Card className="print-area md:col-span-3">
             <CardHeader>
-              <CardTitle className="text-base">Peringkat Semester Aktif</CardTitle>
-              <CardDescription>Semester Genap 2024/2025</CardDescription>
+              <CardTitle className="text-base">
+                {activeTab === "umum" ? "Peringkat Keseluruhan (Semua Kelas)" : `Peringkat Kelas ${activeTab}`}
+              </CardTitle>
+              <CardDescription>Semester {activePeriodeName.split(" - ")[1]} {activePeriodeName.split(" - ")[0]}</CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab}>
