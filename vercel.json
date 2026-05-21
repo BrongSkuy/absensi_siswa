@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd absensi-siswa-app && npm run build",
+  "outputDirectory": "absensi-siswa-app/.next",
+  "installCommand": "cd absensi-siswa-app && npm install",
+  "framework": "nextjs"
+}

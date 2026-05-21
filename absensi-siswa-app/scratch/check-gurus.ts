@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { db } from "../src/db";
 import { user } from "../src/db/auth-schema";
 import { eq } from "drizzle-orm";
