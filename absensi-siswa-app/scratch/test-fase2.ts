@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = "http://localhost:3001";
 
 async function loginAsAdmin() {
   const res = await fetch(`${BASE_URL}/api/auth/sign-in/email`, {
@@ -11,7 +11,10 @@ async function loginAsAdmin() {
     },
     body: JSON.stringify({ email: "admin@sekolah.id", password: "admin123" }),
   });
-  if (!res.ok) throw new Error("Failed to login as admin");
+  if (!res.ok) {
+    console.log(await res.text());
+    throw new Error("Failed to login as admin");
+  }
   const cookies = res.headers.get("set-cookie");
   const betterAuthSession = cookies
     ?.split(",")

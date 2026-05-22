@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { spkScores, students, spkCriteria, academicYears, spkGradingCategories } from "@/db/schema";
+import { spkScores, students, spkCriteria, academicYears, spkGradingCategories, teachers, teacherClasses, teacherSubjects } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -120,6 +120,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Data nilai tidak valid" }, { status: 400 });
     }
 
+    // Role Isolation Check
+    if (appRole === "GURU") {
+      const [teacherRecord] = await db.select().from(teachers).where(eq(teachers.userId, session.user.id as string));
+      if (!teacherRecord) {
+        return NextResponse.json({ error: "Data guru tidak ditemukan" }, { status: 404 });
+      }
+
+      // Check Class Assignment
+      const [classAssignment] = await db.select().from(teacherClasses).where(
+        and(eq(teacherClasses.teacherId, teacherRecord.id), eq(teacherClasses.kelas, body.kelas))
+      );
+      if (!classAssignment) {
+        return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mengajar di kelas ini." }, { status: 403 });
+      }
+
+      // Check Subject Assignment
+      if (mapel !== "Umum") {
+        const [subjectAssignment] = await db.select().from(teacherSubjects).where(
+          and(eq(teacherSubjects.teacherId, teacherRecord.id), eq(teacherSubjects.namaMapel, mapel))
+        );
+        if (!subjectAssignment) {
+          return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mata pelajaran ini." }, { status: 403 });
+        }
+      }
+    }
+
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
     const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2025/2026-Genap";
 
@@ -147,6 +173,9 @@ export async function POST(request: NextRequest) {
          Object.values(record.details).forEach(val => {
             const num = parseFloat(String(val));
             if (!isNaN(num)) {
+               if (num < 0 || num > 100) {
+                  throw new Error(`Nilai tidak valid (${num}). Nilai harus berada dalam rentang 0 hingga 100.`);
+               }
                sum += num;
                count++;
             }
@@ -211,6 +240,32 @@ export async function DELETE(request: NextRequest) {
 
   if (!kelas || !criteriaId) {
     return NextResponse.json({ error: "Parameter wajib tidak lengkap" }, { status: 400 });
+  }
+
+  // Role Isolation Check for DELETE
+  if (appRole === "GURU") {
+    const [teacherRecord] = await db.select().from(teachers).where(eq(teachers.userId, session.user.id as string));
+    if (!teacherRecord) {
+      return NextResponse.json({ error: "Data guru tidak ditemukan" }, { status: 404 });
+    }
+
+    // Check Class Assignment
+    const [classAssignment] = await db.select().from(teacherClasses).where(
+      and(eq(teacherClasses.teacherId, teacherRecord.id), eq(teacherClasses.kelas, kelas))
+    );
+    if (!classAssignment) {
+      return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mengajar di kelas ini." }, { status: 403 });
+    }
+
+    // Check Subject Assignment
+    if (mapel) {
+      const [subjectAssignment] = await db.select().from(teacherSubjects).where(
+        and(eq(teacherSubjects.teacherId, teacherRecord.id), eq(teacherSubjects.namaMapel, mapel))
+      );
+      if (!subjectAssignment) {
+        return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mata pelajaran ini." }, { status: 403 });
+      }
+    }
   }
 
   try {
