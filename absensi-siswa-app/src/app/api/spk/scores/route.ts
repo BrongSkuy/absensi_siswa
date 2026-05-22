@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { spkScores, students, spkCriteria, academicYears, spkGradingCategories, teachers, teacherClasses, teacherSubjects } from "@/db/schema";
+import { spkScores, students, spkCriteria, academicYears, spkGradingCategories, teachers, teacherClasses, teacherSubjects, spkPublishStatus } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -149,6 +149,12 @@ export async function POST(request: NextRequest) {
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
     const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2025/2026-Genap";
 
+    // Lockdown Check
+    const [pubStatus] = await db.select().from(spkPublishStatus).where(eq(spkPublishStatus.periode, periode));
+    if (pubStatus?.isPublished) {
+      return NextResponse.json({ error: "Periode ini telah dikunci (Finalized). Data nilai tidak dapat diubah lagi." }, { status: 403 });
+    }
+
     // Sub-transaction 1: Update Categories Configuration
     const categoryCond = and(
       eq(spkGradingCategories.kelas, body.kelas),
@@ -271,6 +277,12 @@ export async function DELETE(request: NextRequest) {
   try {
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
     const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2025/2026-Genap";
+
+    // Lockdown Check
+    const [pubStatus] = await db.select().from(spkPublishStatus).where(eq(spkPublishStatus.periode, periode));
+    if (pubStatus?.isPublished) {
+      return NextResponse.json({ error: "Periode ini telah dikunci (Finalized). Data nilai tidak dapat dihapus lagi." }, { status: 403 });
+    }
 
     const siswaKelas = await db.select().from(students).where(eq(students.kelas, kelas)).all();
     

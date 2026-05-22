@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { attendance, students, academicYears, teachers, teacherClasses, teacherSubjects } from "@/db/schema";
+import { attendance, students, academicYears, teachers, teacherClasses, teacherSubjects, spkPublishStatus } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -124,6 +124,12 @@ export async function POST(request: NextRequest) {
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
     const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
 
+    // Lockdown Check
+    const [pubStatus] = await db.select().from(spkPublishStatus).where(eq(spkPublishStatus.periode, periode));
+    if (pubStatus?.isPublished) {
+      return NextResponse.json({ error: "Periode ini telah dikunci (Finalized). Data absensi tidak dapat diubah lagi." }, { status: 403 });
+    }
+
     // Delete existing records for this date + these students, then insert new ones
     for (const record of body.records) {
       // Delete old record if exists
@@ -205,6 +211,12 @@ export async function DELETE(request: NextRequest) {
   try {
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
     const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+
+    // Lockdown Check
+    const [pubStatus] = await db.select().from(spkPublishStatus).where(eq(spkPublishStatus.periode, periode));
+    if (pubStatus?.isPublished) {
+      return NextResponse.json({ error: "Periode ini telah dikunci (Finalized). Data absensi tidak dapat dihapus lagi." }, { status: 403 });
+    }
 
     // We need to delete records of students in that class
     const siswaKelas = await db.select().from(students).where(eq(students.kelas, kelas)).all();
