@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { calculateSPK, validateSPKCriteriaFilled } from "@/lib/spk";
+import { DEFAULT_PERIODE } from "@/lib/utils";
 
 export async function GET(_request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -12,7 +13,7 @@ export async function GET(_request: NextRequest) {
 
   try {
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
-    const activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+    const activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : DEFAULT_PERIODE;
 
     const [status] = await db.select().from(spkPublishStatus).where(eq(spkPublishStatus.periode, activePeriode));
     return NextResponse.json({

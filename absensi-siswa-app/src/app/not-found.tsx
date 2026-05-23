@@ -13,8 +13,8 @@ export default function NotFound() {
       <p className="mb-8 max-w-md text-gray-600">
         Maaf, halaman yang Anda cari tidak ada atau telah dipindahkan. Silakan kembali ke halaman utama untuk melanjutkan.
       </p>
-      <Link 
-        href="/" 
+      <Link
+        href="/"
         className={`${buttonVariants({ variant: "default" })} bg-navy-600 hover:bg-navy-700 text-white shadow-md`}
       >
         Kembali ke Beranda

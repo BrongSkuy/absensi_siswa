@@ -112,7 +112,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
 
       // For "Kehadiran" (Otomatis), use attendance percentage
-      if (c.tipe === "Otomatis" && c.namaKriteria === "Kehadiran") {
+      if (c.tipe === "Otomatis" && c.namaKriteria.toLowerCase().includes("kehadiran")) {
         nilaiRataRata = persentaseKehadiran;
       }
 

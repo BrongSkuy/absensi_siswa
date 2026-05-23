@@ -123,38 +123,34 @@ export async function GET() {
     const classesStatus = [];
     let classesDiabsen = 0;
 
+    const classNames = assignedClasses.map(c => c.namaKelas);
+    let allAttendanceToday: Array<{ id: string, kelas: string, mapel: string | null }> = [];
+    
+    if (classNames.length > 0) {
+      allAttendanceToday = await db
+        .select({ id: attendance.id, kelas: students.kelas, mapel: attendance.mapel })
+        .from(attendance)
+        .innerJoin(students, eq(attendance.studentId, students.id))
+        .where(
+           and(
+              inArray(students.kelas, classNames),
+              eq(attendance.tanggal, today)
+           )
+        )
+        .all();
+    }
+
     for (const c of assignedClasses) {
       const relevantMapels = [...c.subjects];
       
-      let attendanceForClassToday: { id: string }[] = [];
+      let hasAttendance = false;
       if (relevantMapels.length > 0) {
-         attendanceForClassToday = await db
-            .select({ id: attendance.id })
-            .from(attendance)
-            .innerJoin(students, eq(attendance.studentId, students.id))
-            .where(
-               and(
-                  eq(students.kelas, c.namaKelas),
-                  eq(attendance.tanggal, today),
-                  inArray(attendance.mapel, relevantMapels)
-               )
-            )
-            .all();
+         hasAttendance = allAttendanceToday.some(a => a.kelas === c.namaKelas && relevantMapels.includes(a.mapel || ""));
       } else if (appRole === "ADMIN") {
-         attendanceForClassToday = await db
-            .select({ id: attendance.id })
-            .from(attendance)
-            .innerJoin(students, eq(attendance.studentId, students.id))
-            .where(
-               and(
-                  eq(students.kelas, c.namaKelas),
-                  eq(attendance.tanggal, today)
-               )
-            )
-            .all();
+         hasAttendance = allAttendanceToday.some(a => a.kelas === c.namaKelas);
       }
 
-      if (attendanceForClassToday.length > 0) {
+      if (hasAttendance) {
          classesDiabsen++;
          classesStatus.push({ ...c, statusAbsensiHariIni: "Sudah Diabsen" });
       } else {

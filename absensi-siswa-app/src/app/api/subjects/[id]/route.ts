@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { subjects } from "@/db/schema";
+import { subjects, attendance, spkScores, teacherSubjects } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -52,6 +52,46 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    const [targetSubject] = await db
+      .select()
+      .from(subjects)
+      .where(eq(subjects.id, id))
+      .all();
+
+    if (!targetSubject) {
+      return NextResponse.json({ error: "Mata pelajaran tidak ditemukan" }, { status: 404 });
+    }
+
+    // Check references in attendance table
+    const attendanceRefs = await db
+      .select()
+      .from(attendance)
+      .where(eq(attendance.mapel, targetSubject.namaMapel))
+      .limit(1)
+      .all();
+
+    // Check references in spkScores table
+    const scoreRefs = await db
+      .select()
+      .from(spkScores)
+      .where(eq(spkScores.mapel, targetSubject.namaMapel))
+      .limit(1)
+      .all();
+
+    // Check references in teacherSubjects table
+    const teacherRefs = await db
+      .select()
+      .from(teacherSubjects)
+      .where(eq(teacherSubjects.namaMapel, targetSubject.namaMapel))
+      .limit(1)
+      .all();
+
+    if (attendanceRefs.length > 0 || scoreRefs.length > 0 || teacherRefs.length > 0) {
+      return NextResponse.json({
+        error: "Tidak dapat menghapus mata pelajaran karena memiliki data absensi, nilai, atau penugasan aktif"
+      }, { status: 400 });
+    }
+
     const [deleted] = await db
       .delete(subjects)
       .where(eq(subjects.id, id))
@@ -67,3 +107,4 @@ export async function DELETE(
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+

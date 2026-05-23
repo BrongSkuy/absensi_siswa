@@ -178,7 +178,11 @@ export async function GET() {
 
     // Leaderboards for each class
     for (const c of allClasses) {
-      const spkClass = await calculateSPK(c.namaKelas);
+      const classStudents = spkLeaderboard.filter(d => d.kelas === c.namaKelas);
+      // Re-sort and rank them for this specific class
+      const sortedClass = classStudents.sort((a, b) => b.rawScore - a.rawScore);
+      const spkClass = sortedClass.map((s, idx) => ({ ...s, rank: idx + 1 }));
+
       const classData = spkClass.map(d => ({
         Rank: d.rank,
         NIS: d.nis,

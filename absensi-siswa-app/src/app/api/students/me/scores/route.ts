@@ -110,7 +110,7 @@ export async function GET() {
       }
 
       // For "Kehadiran" (Otomatis), use attendance percentage
-      if (c.tipe === "Otomatis" && c.namaKriteria === "Kehadiran") {
+      if (c.tipe === "Otomatis" && c.namaKriteria.toLowerCase().includes("kehadiran")) {
         nilaiRataRata = persentaseKehadiran;
       }
 

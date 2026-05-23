@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { students, teachers, attendance, spkScores, teacherClasses, teacherSubjects, spkGradingCategories, classes, subjects, spkResults, spkPublishStatus } from "@/db/schema";
+import { user } from "@/db/auth-schema";
+import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -12,23 +14,23 @@ export async function POST() {
   }
 
   try {
-    // Delete in order to avoid FK issues (most dependent first)
-    await db.delete(spkResults);
-    await db.delete(spkPublishStatus);
-    await db.delete(spkGradingCategories);
-    await db.delete(spkScores);
-    await db.delete(attendance);
-    await db.delete(teacherSubjects);
-    await db.delete(teacherClasses);
-    await db.delete(students);
-    await db.delete(teachers);
-    await db.delete(subjects);
-    await db.delete(classes);
+    await db.transaction(async (tx) => {
+      // Delete in order to avoid FK issues (most dependent first)
+      await tx.delete(spkResults);
+      await tx.delete(spkPublishStatus);
+      await tx.delete(spkGradingCategories);
+      await tx.delete(spkScores);
+      await tx.delete(attendance);
+      await tx.delete(teacherSubjects);
+      await tx.delete(teacherClasses);
+      await tx.delete(students);
+      await tx.delete(teachers);
+      await tx.delete(subjects);
+      await tx.delete(classes);
 
-    // Hapus akun login (auth users) siswa dan guru
-    const { user } = await import("@/db/auth-schema");
-    const { inArray } = await import("drizzle-orm");
-    await db.delete(user).where(inArray(user.appRole, ["SISWA", "GURU"]));
+      // Hapus akun login (auth users) siswa dan guru
+      await tx.delete(user).where(inArray(user.appRole, ["SISWA", "GURU"]));
+    });
 
     return NextResponse.json({
       success: true,
@@ -39,3 +41,4 @@ export async function POST() {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+

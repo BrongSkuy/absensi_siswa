@@ -155,72 +155,74 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Periode ini telah dikunci (Finalized). Data nilai tidak dapat diubah lagi." }, { status: 403 });
     }
 
-    // Sub-transaction 1: Update Categories Configuration
-    const categoryCond = and(
-      eq(spkGradingCategories.kelas, body.kelas),
-      eq(spkGradingCategories.criteriaId, body.criteriaId),
-      eq(spkGradingCategories.mapel, mapel),
-      eq(spkGradingCategories.periode, periode)
-    );
-    await db.delete(spkGradingCategories).where(categoryCond);
-    await db.insert(spkGradingCategories).values({
-      kelas: body.kelas,
-      mapel,
-      criteriaId: body.criteriaId,
-      periode,
-      categories: JSON.stringify(body.categories || [])
-    });
-
-    for (const record of body.records) {
-      // Calculate average (nilai)
-      let sum = 0;
-      let count = 0;
-      if (record.details) {
-         Object.values(record.details).forEach(val => {
-            const num = parseFloat(String(val));
-            if (!isNaN(num)) {
-               if (num < 0 || num > 100) {
-                  throw new Error(`Nilai tidak valid (${num}). Nilai harus berada dalam rentang 0 hingga 100.`);
-               }
-               sum += num;
-               count++;
-            }
-         });
-      }
-      const rataRata = count > 0 ? (sum / count) : 0;
-
-      // Delete old record
-      let deleteCond = and(
-         eq(spkScores.studentId, record.studentId),
-         eq(spkScores.criteriaId, body.criteriaId),
-         eq(spkScores.periode, periode)
+    await db.transaction(async (tx) => {
+      // Sub-transaction 1: Update Categories Configuration
+      const categoryCond = and(
+        eq(spkGradingCategories.kelas, body.kelas),
+        eq(spkGradingCategories.criteriaId, body.criteriaId),
+        eq(spkGradingCategories.mapel, mapel),
+        eq(spkGradingCategories.periode, periode)
       );
-
-      if (mapel !== "Umum") {
-         deleteCond = and(deleteCond, eq(spkScores.mapel, mapel));
-      } else {
-         const existingNull = await db.select().from(spkScores).where(deleteCond).all();
-         const toDelete = existingNull.filter(x => !x.mapel || x.mapel === "Umum" || x.mapel === "").map(x => x.id);
-         if (toDelete.length > 0) {
-            for (const idToDelete of toDelete) {
-               await db.delete(spkScores).where(eq(spkScores.id, idToDelete));
-            }
-         }
-      }
-
-      if (mapel !== "Umum") {
-         await db.delete(spkScores).where(deleteCond);
-      }
-
-      await db.insert(spkScores).values({
-        studentId: record.studentId,
+      await tx.delete(spkGradingCategories).where(categoryCond);
+      await tx.insert(spkGradingCategories).values({
+        kelas: body.kelas,
+        mapel,
         criteriaId: body.criteriaId,
-        mapel: mapel === "Umum" ? null : mapel,
-        nilai: rataRata, // calculated average
-        details: record.details ? JSON.stringify(record.details) : null,
-        periode: periode,
+        periode,
+        categories: JSON.stringify(body.categories || [])
       });
-    }
+
+      for (const record of body.records) {
+        // Calculate average (nilai)
+        let sum = 0;
+        let count = 0;
+        if (record.details) {
+           Object.values(record.details).forEach(val => {
+              const num = parseFloat(String(val));
+              if (!isNaN(num)) {
+                 if (num < 0 || num > 100) {
+                    throw new Error(`Nilai tidak valid (${num}). Nilai harus berada dalam rentang 0 hingga 100.`);
+                 }
+                 sum += num;
+                 count++;
+              }
+           });
+        }
+        const rataRata = count > 0 ? (sum / count) : 0;
+
+        // Delete old record
+        let deleteCond = and(
+           eq(spkScores.studentId, record.studentId),
+           eq(spkScores.criteriaId, body.criteriaId),
+           eq(spkScores.periode, periode)
+        );
+
+        if (mapel !== "Umum") {
+           deleteCond = and(deleteCond, eq(spkScores.mapel, mapel));
+        } else {
+           const existingNull = await tx.select().from(spkScores).where(deleteCond).all();
+           const toDelete = existingNull.filter(x => !x.mapel || x.mapel === "Umum" || x.mapel === "").map(x => x.id);
+           if (toDelete.length > 0) {
+              for (const idToDelete of toDelete) {
+                 await tx.delete(spkScores).where(eq(spkScores.id, idToDelete));
+              }
+           }
+        }
+
+        if (mapel !== "Umum") {
+           await tx.delete(spkScores).where(deleteCond);
+        }
+
+        await tx.insert(spkScores).values({
+          studentId: record.studentId,
+          criteriaId: body.criteriaId,
+          mapel: mapel === "Umum" ? null : mapel,
+          nilai: rataRata, // calculated average
+          details: record.details ? JSON.stringify(record.details) : null,
+          periode: periode,
+        });
+      }
+    });
 
     return NextResponse.json({ success: true, count: body.records.length });
   } catch (error: unknown) {
@@ -284,39 +286,41 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Periode ini telah dikunci (Finalized). Data nilai tidak dapat dihapus lagi." }, { status: 403 });
     }
 
-    const siswaKelas = await db.select().from(students).where(eq(students.kelas, kelas)).all();
-    
-    for (const s of siswaKelas) {
-      let cond = and(
-         eq(spkScores.studentId, s.id),
-         eq(spkScores.criteriaId, criteriaId),
-         eq(spkScores.periode, periode)
+    await db.transaction(async (tx) => {
+      const siswaKelas = await tx.select().from(students).where(eq(students.kelas, kelas)).all();
+      
+      for (const s of siswaKelas) {
+        let cond = and(
+           eq(spkScores.studentId, s.id),
+           eq(spkScores.criteriaId, criteriaId),
+           eq(spkScores.periode, periode)
+        );
+
+        if (mapel) {
+           cond = and(cond, eq(spkScores.mapel, mapel));
+        }
+
+        if (!mapel) {
+           const allRecords = await tx.select().from(spkScores).where(cond).all();
+           for (const rec of allRecords) {
+              if (!rec.mapel || rec.mapel === "Umum") {
+                 await tx.delete(spkScores).where(eq(spkScores.id, rec.id));
+              }
+           }
+        } else {
+           await tx.delete(spkScores).where(cond);
+        }
+      }
+      
+      // Also cleanup categories
+      const catCond = and(
+         eq(spkGradingCategories.kelas, kelas),
+         eq(spkGradingCategories.criteriaId, criteriaId),
+         eq(spkGradingCategories.mapel, mapel || "Umum"),
+         eq(spkGradingCategories.periode, periode)
       );
-
-      if (mapel) {
-         cond = and(cond, eq(spkScores.mapel, mapel));
-      }
-
-      if (!mapel) {
-         const allRecords = await db.select().from(spkScores).where(cond).all();
-         for (const rec of allRecords) {
-            if (!rec.mapel || rec.mapel === "Umum") {
-               await db.delete(spkScores).where(eq(spkScores.id, rec.id));
-            }
-         }
-      } else {
-         await db.delete(spkScores).where(cond);
-      }
-    }
-    
-    // Also cleanup categories
-    const catCond = and(
-       eq(spkGradingCategories.kelas, kelas),
-       eq(spkGradingCategories.criteriaId, criteriaId),
-       eq(spkGradingCategories.mapel, mapel || "Umum"),
-       eq(spkGradingCategories.periode, periode)
-    );
-    await db.delete(spkGradingCategories).where(catCond);
+      await tx.delete(spkGradingCategories).where(catCond);
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

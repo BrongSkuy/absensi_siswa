@@ -76,16 +76,24 @@ export async function DELETE(
       );
     }
 
-    const [deleted] = await db
-      .delete(classes)
-      .where(eq(classes.id, id))
-      .returning();
+    const result = await db.transaction(async (tx) => {
+      // Cleanup teacher classes (Item 14/orphan data protection)
+      const { teacherClasses } = await import("@/db/schema");
+      await tx.delete(teacherClasses).where(eq(teacherClasses.kelas, classToDelete.namaKelas));
 
-    if (!deleted) {
+      const [deleted] = await tx
+        .delete(classes)
+        .where(eq(classes.id, id))
+        .returning();
+
+      return deleted;
+    });
+
+    if (!result) {
       return NextResponse.json({ error: "Kelas tidak ditemukan" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deleted: result });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Gagal menghapus kelas";
     return NextResponse.json({ error: message }, { status: 500 });

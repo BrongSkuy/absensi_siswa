@@ -51,13 +51,7 @@ export async function POST(request: NextRequest) {
        const jk = row.jenisKelamin.toUpperCase().startsWith("L") ? "L" : "P";
        row.jenisKelamin = jk; // normalize inline
 
-       const existing = existingStudents.find(s => s.nis === row.nis);
-       if (existing) {
-          // Check name match strictly!
-          if (existing.namaLengkap.trim().toLowerCase() !== row.namaLengkap.trim().toLowerCase()) {
-             errors.push(`NIS ${row.nis} terdaftar atas nama '${existing.namaLengkap}', tetapi di Excel bernama '${row.namaLengkap}'. Harap perbaiki sebelum melanjutkan.`);
-          }
-       }
+       // Note: Removed strict name matching to allow updating student names via Excel!
     }
 
     // Halt if critical validation fails
@@ -71,34 +65,55 @@ export async function POST(request: NextRequest) {
         const existing = existingStudents.find(s => s.nis === row.nis);
 
         if (existing) {
-           // Update existing (e.g. pindah kelas, update angkatan, status aktif)
-           await db.update(students).set({
-              kelas: row.kelas,
-              angkatan: row.angkatan,
-              jenisKelamin: row.jenisKelamin as "L" | "P",
-              status: "aktif"
-           }).where(eq(students.id, existing.id));
-        } else {
-           // Insert new
-           const newUser = await auth.api.signUpEmail({
-             body: {
-               email: `${row.nis}@siswa.sekolah.id`,
-               password: row.nis,
-               name: row.namaLengkap,
-               username: row.nis,
-               appRole: "SISWA",
-             },
-           });
+           // Item 6: Update existing + Sync auth user table in transaction
+           await db.transaction(async (tx) => {
+             await tx.update(students).set({
+                namaLengkap: row.namaLengkap, // Update the name!
+                kelas: row.kelas,
+                angkatan: row.angkatan,
+                jenisKelamin: row.jenisKelamin as "L" | "P",
+                status: "aktif"
+             }).where(eq(students.id, existing.id));
 
-           await db.insert(students).values({
-             userId: newUser.user.id,
-             nis: row.nis,
-             namaLengkap: row.namaLengkap,
-             kelas: row.kelas,
-             angkatan: row.angkatan,
-             jenisKelamin: row.jenisKelamin as "L" | "P",
-             status: "aktif",
+             if (existing.userId) {
+               const { user } = await import("@/db/auth-schema");
+               await tx.update(user).set({
+                 name: row.namaLengkap,
+               }).where(eq(user.id, existing.userId));
+             }
            });
+        } else {
+           // Item 10: Insert new with fallback cleanup
+           let newUserId: string | null = null;
+           try {
+             const newUser = await auth.api.signUpEmail({
+               body: {
+                 email: `${row.nis}@siswa.sekolah.id`,
+                 password: row.nis,
+                 name: row.namaLengkap,
+                 username: row.nis,
+                 appRole: "SISWA",
+               },
+             });
+             newUserId = newUser.user.id;
+  
+             await db.insert(students).values({
+               userId: newUser.user.id,
+               nis: row.nis,
+               namaLengkap: row.namaLengkap,
+               kelas: row.kelas,
+               angkatan: row.angkatan,
+               jenisKelamin: row.jenisKelamin as "L" | "P",
+               status: "aktif",
+             });
+           } catch (e) {
+             // Rollback: if DB insert fails, remove the ghost auth user!
+             if (newUserId) {
+               const { user } = await import("@/db/auth-schema");
+               await db.delete(user).where(eq(user.id, newUserId)).run();
+             }
+             throw e;
+           }
         }
 
         successCount++;

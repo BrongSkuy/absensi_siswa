@@ -1,14 +1,15 @@
 import { db } from "@/db";
 import { spkScores, students, spkCriteria, attendance, academicYears, teacherClasses, teacherSubjects, classes as classesTable } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { DEFAULT_PERIODE } from "@/lib/utils";
 
 export async function calculateSPK(kelas: string, targetPeriode?: string) {
   // 1. Fetch Students
   let siswaKelas = [];
   if (kelas === "all" || kelas === "umum") {
-    siswaKelas = await db.select().from(students).all();
+    siswaKelas = await db.select().from(students).where(eq(students.status, "aktif")).all();
   } else {
-    siswaKelas = await db.select().from(students).where(eq(students.kelas, kelas)).all();
+    siswaKelas = await db.select().from(students).where(and(eq(students.kelas, kelas), eq(students.status, "aktif"))).all();
   }
   
   if (siswaKelas.length === 0) return [];
@@ -17,7 +18,7 @@ export async function calculateSPK(kelas: string, targetPeriode?: string) {
   let activePeriode = targetPeriode;
   if (!activePeriode) {
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
-    activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+    activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : DEFAULT_PERIODE;
   }
 
   // 3. Fetch Criteria
@@ -132,7 +133,7 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
   let activePeriode = targetPeriode;
   if (!activePeriode) {
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
-    activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+    activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : DEFAULT_PERIODE;
   }
 
   // 3. Fetch Criteria

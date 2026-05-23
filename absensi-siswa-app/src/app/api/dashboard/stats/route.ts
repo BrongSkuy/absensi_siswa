@@ -4,6 +4,7 @@ import { students, teachers, attendance, academicYears } from "@/db/schema";
 import { eq, sql, count, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { getTodayWIB } from "@/lib/utils";
 
 // GET /api/dashboard/stats — dashboard statistics
 export async function GET() {
@@ -31,8 +32,8 @@ export async function GET() {
     .where(eq(academicYears.isActive, true));
   const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2025/2026-Genap";
 
-  // Today's attendance percentage
-  const today = new Date().toLocaleDateString('en-CA'); // Get YYYY-MM-DD
+  // Today's attendance percentage (using WIB timezone)
+  const today = getTodayWIB();
   const [todayAttendance] = await db
     .select({ count: count() })
     .from(attendance)
@@ -52,27 +53,39 @@ export async function GET() {
     : 0;
 
   // All-time attendance trend (grouped by date) for the active period
-  const allDates = await db
-    .select({ tanggal: attendance.tanggal })
+  const allPeriodAttendance = await db
+    .select({ 
+      tanggal: attendance.tanggal, 
+      status: attendance.status, 
+      count: count() 
+    })
     .from(attendance)
     .where(eq(attendance.periode, periode))
-    .groupBy(attendance.tanggal)
+    .groupBy(attendance.tanggal, attendance.status)
     .orderBy(sql`${attendance.tanggal} ASC`);
 
-  const weeklyAttendance = [];
-  for (const row of allDates) {
-    const records = await db.select().from(attendance).where(sql`${attendance.tanggal} = ${row.tanggal} AND ${attendance.periode} = ${periode}`);
-    const hadir = records.filter((r) => r.status === "Hadir").length;
-    const izin = records.filter((r) => r.status === "Izin").length;
-    const sakit = records.filter((r) => r.status === "Sakit").length;
-    const alfa = records.filter((r) => r.status === "Alfa").length;
-    
-    // Parse "YYYY-MM-DD" safely
-    const dObj = new Date(row.tanggal);
-    const hari = isNaN(dObj.getTime()) ? row.tanggal : dObj.toLocaleDateString("id-ID", { day: 'numeric', month: 'short' });
-    
-    weeklyAttendance.push({ hari, hadir, izin, sakit, alfa });
+  const attendanceMap: Record<string, { hadir: number, izin: number, sakit: number, alfa: number }> = {};
+  for (const row of allPeriodAttendance) {
+    if (!attendanceMap[row.tanggal]) {
+       attendanceMap[row.tanggal] = { hadir: 0, izin: 0, sakit: 0, alfa: 0 };
+    }
+    const st = row.status ? row.status.toLowerCase() : 'alfa';
+    if (st === 'hadir' || st === 'izin' || st === 'sakit' || st === 'alfa') {
+        attendanceMap[row.tanggal][st] = row.count;
+    }
   }
+
+  const weeklyAttendance = Object.keys(attendanceMap).sort().map(tanggal => {
+    const dObj = new Date(tanggal);
+    const hari = isNaN(dObj.getTime()) ? tanggal : dObj.toLocaleDateString("id-ID", { day: 'numeric', month: 'short' });
+    return {
+      hari,
+      hadir: attendanceMap[tanggal].hadir,
+      izin: attendanceMap[tanggal].izin,
+      sakit: attendanceMap[tanggal].sakit,
+      alfa: attendanceMap[tanggal].alfa
+    };
+  });
 
   return NextResponse.json({
     totalSiswa: studentCount.count,

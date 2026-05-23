@@ -13,3 +13,6 @@ export function getTodayWIB() {
     day: '2-digit' 
   }).format(new Date());
 }
+
+// Standardized fallback period to avoid mismatch between API routes
+export const DEFAULT_PERIODE = "2025/2026-Genap";

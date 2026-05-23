@@ -4,12 +4,18 @@ import { attendance, students, academicYears, teachers, teacherClasses, teacherS
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { DEFAULT_PERIODE } from "@/lib/utils";
 
 // GET /api/attendance — get attendance by kelas and tanggal
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const appRole = (session.user as Record<string, unknown>)?.appRole;
+  if (appRole !== "ADMIN" && appRole !== "GURU") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -32,7 +38,7 @@ export async function GET(request: NextRequest) {
     .all();
 
   const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
-  const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+  const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : DEFAULT_PERIODE;
 
   // Get existing attendance records for this date and mapel and periode
   const existingRecords = await db
@@ -122,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
-    const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+    const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : DEFAULT_PERIODE;
 
     // Lockdown Check
     const [pubStatus] = await db.select().from(spkPublishStatus).where(eq(spkPublishStatus.periode, periode));
@@ -210,7 +216,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
-    const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+    const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : DEFAULT_PERIODE;
 
     // Lockdown Check
     const [pubStatus] = await db.select().from(spkPublishStatus).where(eq(spkPublishStatus.periode, periode));

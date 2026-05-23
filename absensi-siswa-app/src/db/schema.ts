@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
 
 // ============================================================
 // App-specific tables (Better Auth manages its own tables)
@@ -63,8 +63,12 @@ export const attendance = sqliteTable("attendance", {
   mapel: text("mapel").default("Umum"), // "Umum" if not mapped to specific subject
   status: text("status", { enum: ["Hadir", "Izin", "Sakit", "Alfa"] }).notNull(),
   recordedBy: text("recorded_by"), // userId of teacher who recorded
-  periode: text("periode").notNull().default("2024/2025-Genap"), // Isolation tag
-});
+  periode: text("periode").notNull().default("2025/2026-Genap"), // Isolation tag
+}, (table) => [
+  index("att_student_idx").on(table.studentId),
+  index("att_tanggal_idx").on(table.tanggal),
+  index("att_periode_idx").on(table.periode),
+]);
 
 // --- SPK Criteria (kriteria + bobot) ---
 export const spkCriteria = sqliteTable("spk_criteria", {
@@ -84,7 +88,10 @@ export const spkScores = sqliteTable("spk_scores", {
   nilai: real("nilai").notNull().default(0), // The calculated average
   details: text("details"), // JSON string e.g. '{"Tugas": 80, "UTS": 90}'
   periode: text("periode").notNull(), // e.g. "2025/2026-Genap"
-});
+}, (table) => [
+  index("spk_scores_student_idx").on(table.studentId),
+  index("spk_scores_periode_idx").on(table.periode),
+]);
 
 // --- Leaderboard Archives (arsip historis) ---
 export const leaderboardArchives = sqliteTable("leaderboard_archives", {
@@ -132,7 +139,10 @@ export const spkResults = sqliteTable("spk_results", {
   rawScore: real("raw_score").notNull(),
   persentase: real("persentase").notNull(),
   details: text("details"),
-});
+}, (table) => [
+  index("spk_results_student_idx").on(table.studentId),
+  index("spk_results_periode_idx").on(table.periode),
+]);
 
 // ============================================================
 // Type exports

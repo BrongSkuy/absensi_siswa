@@ -4,6 +4,7 @@ import { academicYears, spkPublishStatus, spkResults, students } from "@/db/sche
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { DEFAULT_PERIODE } from "@/lib/utils";
 
 import { calculateSPK, validateSPKCriteriaFilled } from "@/lib/spk";
 
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Get active academic period
     const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
-    const activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : "2024/2025-Genap";
+    const activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : DEFAULT_PERIODE;
 
     // 2. Handle Admin role (gets real-time calculation + validation details)
     if (isAdmin) {
@@ -109,6 +110,39 @@ export async function GET(request: NextRequest) {
       });
       return NextResponse.json({ isPublished: true, data: mapped, activePeriode });
     }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Gagal memproses SPK";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// POST /api/spk/calculate — trigger SPK calculation (Admin only)
+export async function POST(request: NextRequest) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const appRole = (session.user as Record<string, unknown>)?.appRole;
+  const isAdmin =
+    session.user.role === "admin" ||
+    session.user.role === "super_admin" ||
+    appRole === "ADMIN" ||
+    appRole === "SUPER_ADMIN";
+
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Delegate to GET logic for actual calculation
+  const { searchParams } = new URL(request.url);
+  const kelas = searchParams.get("kelas");
+  if (!kelas) return NextResponse.json({ error: "Parameter kelas wajib" }, { status: 400 });
+
+  try {
+    const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
+    const activePeriode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : DEFAULT_PERIODE;
+    const results = await calculateSPK(kelas, activePeriode);
+    const validation = await validateSPKCriteriaFilled(kelas, activePeriode);
+    return NextResponse.json({ results, validation, activePeriode });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Gagal memproses SPK";
     return NextResponse.json({ error: message }, { status: 500 });

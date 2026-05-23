@@ -28,6 +28,16 @@ export async function PUT(
       status: body.status,
     };
     if (body.nis) {
+      // Check duplicate NIS
+      const existingWithNis = await db
+        .select()
+        .from(students)
+        .where(eq(students.nis, body.nis))
+        .all();
+      const duplicate = existingWithNis.find((s) => s.id !== id);
+      if (duplicate) {
+        return NextResponse.json({ error: "NIS sudah terdaftar untuk siswa lain" }, { status: 400 });
+      }
       updatePayload.nis = body.nis;
     }
 
@@ -75,22 +85,42 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const [deleted] = await db
-      .delete(students)
-      .where(eq(students.id, id))
-      .returning();
+    const result = await db.transaction(async (tx) => {
+      // Find the student first
+      const studentList = await tx.select().from(students).where(eq(students.id, id));
+      if (studentList.length === 0) {
+        throw new Error("NOT_FOUND");
+      }
+      const student = studentList[0];
 
-    if (deleted && deleted.userId) {
-      const { user } = await import("@/db/auth-schema");
-      await db.delete(user).where(eq(user.id, deleted.userId));
-    }
+      // Cleanup related data
+      const { attendance, spkScores, spkResults } = await import("@/db/schema");
+      await tx.delete(spkResults).where(eq(spkResults.studentId, id));
+      await tx.delete(spkScores).where(eq(spkScores.studentId, id));
+      await tx.delete(attendance).where(eq(attendance.studentId, id));
 
-    if (!deleted) {
+      // Delete auth user if it exists
+      if (student.userId) {
+        const { user, session: sessionTable } = await import("@/db/auth-schema");
+        // Also revoke sessions just in case
+        await tx.delete(sessionTable).where(eq(sessionTable.userId, student.userId));
+        await tx.delete(user).where(eq(user.id, student.userId));
+      }
+
+      // Finally delete the student profile
+      const [deleted] = await tx
+        .delete(students)
+        .where(eq(students.id, id))
+        .returning();
+
+      return deleted;
+    });
+
+    return NextResponse.json({ success: true, deleted: result });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "NOT_FOUND") {
       return NextResponse.json({ error: "Siswa tidak ditemukan" }, { status: 404 });
     }
-
-    return NextResponse.json({ success: true });
-  } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Gagal menghapus data siswa";
     return NextResponse.json({ error: message }, { status: 500 });
   }
