@@ -62,12 +62,18 @@ export async function GET(request: NextRequest) {
     // 4. Extract unique dates
     const uniqueDates = Array.from(new Set(classRecords.map((r) => r.tanggal))).sort();
 
-    // 5. Aggregate data per student
+    // 5. Index classRecords by studentId-tanggal for O(1) lookups
+    const recordMap = new Map<string, string>();
+    classRecords.forEach((r) => {
+      recordMap.set(`${r.studentId}-${r.tanggal}`, r.status);
+    });
+
+    // 6. Aggregate data per student
     const result = siswaKelas.map((siswa) => {
       const history: Record<string, string> = {};
       uniqueDates.forEach((date) => {
-        const rec = classRecords.find((r) => r.studentId === siswa.id && r.tanggal === date);
-        history[date] = rec ? rec.status : "-"; // "-" if no record for that student on that date
+        const status = recordMap.get(`${siswa.id}-${date}`);
+        history[date] = status || "-"; // "-" if no record for that student on that date
       });
 
       return {

@@ -85,14 +85,36 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 4. Aggregate data per student
+    // 4. Pre-group attendance records by studentId and scores by studentId & criteriaId for O(1) lookups
+    const attendanceByStudent = new Map<string, typeof existingRecords>();
+    existingRecords.forEach((r) => {
+      let list = attendanceByStudent.get(r.studentId);
+      if (!list) {
+        list = [];
+        attendanceByStudent.set(r.studentId, list);
+      }
+      list.push(r);
+    });
+
+    const scoresByStudentAndCriteria = new Map<string, typeof existingScores>();
+    existingScores.forEach((sc) => {
+      const key = `${sc.studentId}-${sc.criteriaId}`;
+      let list = scoresByStudentAndCriteria.get(key);
+      if (!list) {
+        list = [];
+        scoresByStudentAndCriteria.set(key, list);
+      }
+      list.push(sc);
+    });
+
+    // 5. Aggregate data per student
     const result = siswaKelas.map((siswa) => {
       let hadir = 0;
       let izin = 0;
       let sakit = 0;
       let alfa = 0;
 
-      const records = existingRecords.filter((r) => r.studentId === siswa.id);
+      const records = attendanceByStudent.get(siswa.id) || [];
       
       records.forEach((r) => {
         if (r.status === "Hadir") hadir++;
@@ -107,7 +129,7 @@ export async function GET(request: NextRequest) {
       // Extract specific scores logic
       const studentScores: Record<string, number> = {};
       mCriteria.forEach(c => {
-         const crScores = existingScores.filter(sc => sc.studentId === siswa.id && sc.criteriaId === c.id);
+         const crScores = scoresByStudentAndCriteria.get(`${siswa.id}-${c.id}`) || [];
          if (crScores.length > 0) {
             const sum = crScores.reduce((acc, curr) => acc + curr.nilai, 0);
             studentScores[c.namaKriteria] = Math.round(sum / crScores.length);

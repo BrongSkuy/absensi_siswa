@@ -77,8 +77,14 @@ export async function GET(request: NextRequest) {
      filteredScores = existingScores.filter(s => !s.mapel || s.mapel === "Umum");
   }
 
+  // Index filteredScores by studentId for O(1) lookups
+  const scoreByStudent = new Map<string, typeof filteredScores[0]>();
+  filteredScores.forEach((r) => {
+    scoreByStudent.set(r.studentId, r);
+  });
+
   const result = siswaKelas.map((s) => {
-    const record = filteredScores.find((r) => r.studentId === s.id);
+    const record = scoreByStudent.get(s.id);
     let detailsObj: Record<string, number> = {};
     if (record?.details) {
       try {

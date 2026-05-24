@@ -54,7 +54,31 @@ export async function calculateSPK(kelas: string, targetPeriode?: string) {
     )
     .all();
 
-  // 6. Build raw Matrix
+  // 6. Pre-group attendance by studentId and scores by studentId & criteriaId for O(1) lookups
+  const attendanceByStudent = new Map<string, typeof allAttendance>();
+  allAttendance.forEach((a) => {
+    if (a.status !== null) {
+      let list = attendanceByStudent.get(a.studentId);
+      if (!list) {
+        list = [];
+        attendanceByStudent.set(a.studentId, list);
+      }
+      list.push(a);
+    }
+  });
+
+  const scoresByStudentAndCriteria = new Map<string, typeof allScores>();
+  allScores.forEach((sc) => {
+    const key = `${sc.studentId}-${sc.criteriaId}`;
+    let list = scoresByStudentAndCriteria.get(key);
+    if (!list) {
+      list = [];
+      scoresByStudentAndCriteria.set(key, list);
+    }
+    list.push(sc);
+  });
+
+  // Build raw Matrix
   const rawMatrix: Record<string, Record<string, number>> = {};
   siswaKelas.forEach((s) => {
      rawMatrix[s.id] = {};
@@ -67,7 +91,7 @@ export async function calculateSPK(kelas: string, targetPeriode?: string) {
      if (c.tipe === "Otomatis" && c.namaKriteria.toLowerCase().includes("kehadiran")) {
         // Calculate percentage from attendance
         siswaKelas.forEach(s => {
-           const sAtt = allAttendance.filter(a => a.studentId === s.id && a.status !== null);
+           const sAtt = attendanceByStudent.get(s.id) || [];
            const hadir = sAtt.filter(a => a.status === "Hadir").length;
            const total = sAtt.length;
            rawMatrix[s.id][c.id] = total > 0 ? (hadir / total) * 100 : 0;
@@ -75,7 +99,7 @@ export async function calculateSPK(kelas: string, targetPeriode?: string) {
      } else {
         // Manual or specific criteria (C1 for example)
         siswaKelas.forEach(s => {
-           const studentScoresForC = allScores.filter(sc => sc.studentId === s.id && sc.criteriaId === c.id);
+           const studentScoresForC = scoresByStudentAndCriteria.get(`${s.id}-${c.id}`) || [];
            if (studentScoresForC.length === 0) {
               rawMatrix[s.id][c.id] = 0;
            } else {
