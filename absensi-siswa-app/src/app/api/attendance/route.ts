@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { attendance, students, academicYears, teachers, teacherClasses, teacherSubjects, spkPublishStatus } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { DEFAULT_PERIODE } from "@/lib/utils";
@@ -37,6 +37,12 @@ export async function GET(request: NextRequest) {
     .where(eq(students.kelas, kelas))
     .all();
 
+  if (siswaKelas.length === 0) {
+    return NextResponse.json([]);
+  }
+
+  const studentIds = siswaKelas.map(s => s.id);
+
   const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true));
   const periode = activeYear ? `${activeYear.tahunAjaran}-${activeYear.semester}` : DEFAULT_PERIODE;
 
@@ -48,7 +54,8 @@ export async function GET(request: NextRequest) {
       and(
         eq(attendance.tanggal, tanggal),
         eq(attendance.mapel, mapel),
-        eq(attendance.periode, periode)
+        eq(attendance.periode, periode),
+        inArray(attendance.studentId, studentIds)
       )
     )
     .all();
@@ -136,30 +143,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Periode ini telah dikunci (Finalized). Data absensi tidak dapat diubah lagi." }, { status: 403 });
     }
 
-    // Delete existing records for this date + these students, then insert new ones
-    for (const record of body.records) {
-      // Delete old record if exists
-      await db
+    // Delete existing records for this date + these students, then insert new ones in transaction
+    await db.transaction(async (tx) => {
+      const studentIds = body.records.map(r => r.studentId);
+      await tx
         .delete(attendance)
         .where(
           and(
-            eq(attendance.studentId, record.studentId),
+            inArray(attendance.studentId, studentIds),
             eq(attendance.tanggal, body.tanggal),
             eq(attendance.mapel, mapel),
             eq(attendance.periode, periode)
           )
         );
 
-      // Insert new record
-      await db.insert(attendance).values({
+      const valuesToInsert = body.records.map(record => ({
         studentId: record.studentId,
         tanggal: body.tanggal,
         mapel: mapel,
         periode: periode,
         status: record.status,
         recordedBy: session.user.id,
-      });
-    }
+      }));
+
+      if (valuesToInsert.length > 0) {
+        await tx.insert(attendance).values(valuesToInsert);
+      }
+    });
 
     return NextResponse.json({
       success: true,
@@ -229,18 +239,16 @@ export async function DELETE(request: NextRequest) {
     const siswaIds = siswaKelas.map(s => s.id);
 
     if (siswaIds.length > 0) {
-       for (const sid of siswaIds) {
-          await db
-             .delete(attendance)
-             .where(
-                 and(
-                    eq(attendance.studentId, sid),
-                    eq(attendance.tanggal, tanggal),
-                    eq(attendance.mapel, mapel),
-                    eq(attendance.periode, periode)
-                 )
-             );
-       }
+       await db
+          .delete(attendance)
+          .where(
+              and(
+                 inArray(attendance.studentId, siswaIds),
+                 eq(attendance.tanggal, tanggal),
+                 eq(attendance.mapel, mapel),
+                 eq(attendance.periode, periode)
+              )
+          );
     }
 
     return NextResponse.json({ success: true });
