@@ -12,18 +12,20 @@ Pastikan Anda sudah menginstal:
 - [npm](https://www.npmjs.com/) (Biasanya otomatis terinstal dengan Node.js)
 
 ### 2. Instalasi Dependensi
-Buka terminal di dalam folder `web-app` dan jalankan:
+Buka terminal di dalam folder `absensi-siswa-app` dan jalankan:
 ```bash
 npm install --legacy-peer-deps
 ```
 *Catatan: Parameter `--legacy-peer-deps` diperlukan untuk menangani konflik versi antara React 19 (Next.js 15) dan beberapa library pendukung yang belum memperbarui metadata mereka.*
 
 ### 3. Konfigurasi Environment Variables
-Buat file baru bernama `.env` di folder root `web-app` (atau duplikasi dari `.env.example`) dan isi dengan:
+Buat file baru bernama `.env` di folder root `absensi-siswa-app` (atau duplikasi dari `.env.example`) dan isi dengan:
 
 ```env
 BETTER_AUTH_SECRET=pilih_bebas_kata_sandi_rahasia_anda_disini
 BETTER_AUTH_URL=http://localhost:3000
+TURSO_DATABASE_URL=libsql://absensi-siswa-brongskuy.aws-ap-northeast-1.turso.io
+TURSO_AUTH_TOKEN=masukkan_auth_token_anda_disini
 ```
 *Tips: Anda bisa membuat secret otomatis dengan menjalankan `npx better-auth secret`.*
 
@@ -64,11 +66,14 @@ Setelah melakukan `seed`, Anda dapat masuk menggunakan akun berikut:
 ---
 
 ## 🛠️ Fitur Terkini (Penambahan & Bug Fix)
-- [x] Perbaikan routing di middleware untuk role-based access.
+- [x] Perbaikan routing di middleware untuk role-based access (Next.js 16 Proxy).
 - [x] Penambahan fitur Import Excel untuk input absensi massal.
 - [x] Sinkronisasi otomatis data profil dari session login.
 - [x] Validasi password minimal 4 karakter (untuk memudahkan NIS).
 - [x] Perbaikan bug pada tampilan grafik dashboard siswa.
+- [x] Pengamanan ketat (Role-Based Access Control) pada seluruh API endpoint siswa, guru, dan admin.
+- [x] Optimasi performa memori (HashMap lookup O(1)) pada proses kalkulasi SPK dan API rekapitulasi data.
+- [x] Pembuatan indeks database pada foreign key utama untuk performa query Turso yang optimal.
 
 ---
 © 2026 Tim Kerja Praktek - SMK Penerbangan Dirghantara
