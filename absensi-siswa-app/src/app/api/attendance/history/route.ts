@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { attendance, students, academicYears } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -39,20 +39,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ dates: [], records: [] });
     }
 
-    // 2. Get all attendance records for this period and mapel
-    const allRecords = await db
+    const studentIds = siswaKelas.map((s) => s.id);
+
+    // 2. Get all attendance records for this period and mapel strictly for students in this class
+    const classRecords = await db
       .select()
       .from(attendance)
       .where(
         and(
           eq(attendance.periode, periode),
-          eq(attendance.mapel, mapel)
+          eq(attendance.mapel, mapel),
+          inArray(attendance.studentId, studentIds)
         )
       )
       .all();
-
-    // 3. Filter records strictly for students in this class
-    const classRecords = allRecords.filter((r) => siswaKelas.some((s) => s.id === r.studentId));
 
     // 4. Extract unique dates
     const uniqueDates = Array.from(new Set(classRecords.map((r) => r.tanggal))).sort();
