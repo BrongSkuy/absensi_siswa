@@ -12,6 +12,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const appRole = (session.user as Record<string, unknown>)?.appRole;
+  if (appRole !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search") || "";
 
