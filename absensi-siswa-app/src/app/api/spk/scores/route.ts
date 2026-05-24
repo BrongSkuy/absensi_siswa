@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { spkScores, students, spkCriteria, academicYears, spkGradingCategories, teachers, teacherClasses, teacherSubjects, spkPublishStatus } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -49,12 +49,21 @@ export async function GET(request: NextRequest) {
 
   // Get students
   const siswaKelas = await db.select().from(students).where(eq(students.kelas, kelas)).all();
+  if (siswaKelas.length === 0) {
+    return NextResponse.json({
+      categories,
+      students: []
+    });
+  }
+
+  const studentIds = siswaKelas.map(s => s.id);
   
   // Get scores
   const scoresQuery = db.select().from(spkScores).where(
      and(
         eq(spkScores.criteriaId, criteriaId),
-        eq(spkScores.periode, periode)
+        eq(spkScores.periode, periode),
+        inArray(spkScores.studentId, studentIds)
      )
   );
 
@@ -172,6 +181,25 @@ export async function POST(request: NextRequest) {
         categories: JSON.stringify(body.categories || [])
       });
 
+      // Batch delete existing scores for these students
+      const studentIds = body.records.map(r => r.studentId);
+      let deleteCond = and(
+         inArray(spkScores.studentId, studentIds),
+         eq(spkScores.criteriaId, body.criteriaId),
+         eq(spkScores.periode, periode)
+      );
+
+      if (mapel !== "Umum") {
+         deleteCond = and(deleteCond, eq(spkScores.mapel, mapel));
+      } else {
+         deleteCond = and(
+           deleteCond,
+           sql`(${spkScores.mapel} IS NULL OR ${spkScores.mapel} = 'Umum' OR ${spkScores.mapel} = '')`
+         );
+      }
+      await tx.delete(spkScores).where(deleteCond);
+
+      const valuesToInsert = [];
       for (const record of body.records) {
         // Calculate average (nilai)
         let sum = 0;
@@ -190,30 +218,7 @@ export async function POST(request: NextRequest) {
         }
         const rataRata = count > 0 ? (sum / count) : 0;
 
-        // Delete old record
-        let deleteCond = and(
-           eq(spkScores.studentId, record.studentId),
-           eq(spkScores.criteriaId, body.criteriaId),
-           eq(spkScores.periode, periode)
-        );
-
-        if (mapel !== "Umum") {
-           deleteCond = and(deleteCond, eq(spkScores.mapel, mapel));
-        } else {
-           const existingNull = await tx.select().from(spkScores).where(deleteCond).all();
-           const toDelete = existingNull.filter(x => !x.mapel || x.mapel === "Umum" || x.mapel === "").map(x => x.id);
-           if (toDelete.length > 0) {
-              for (const idToDelete of toDelete) {
-                 await tx.delete(spkScores).where(eq(spkScores.id, idToDelete));
-              }
-           }
-        }
-
-        if (mapel !== "Umum") {
-           await tx.delete(spkScores).where(deleteCond);
-        }
-
-        await tx.insert(spkScores).values({
+        valuesToInsert.push({
           studentId: record.studentId,
           criteriaId: body.criteriaId,
           mapel: mapel === "Umum" ? null : mapel,
@@ -221,6 +226,10 @@ export async function POST(request: NextRequest) {
           details: record.details ? JSON.stringify(record.details) : null,
           periode: periode,
         });
+      }
+
+      if (valuesToInsert.length > 0) {
+        await tx.insert(spkScores).values(valuesToInsert);
       }
     });
 
@@ -288,28 +297,25 @@ export async function DELETE(request: NextRequest) {
 
     await db.transaction(async (tx) => {
       const siswaKelas = await tx.select().from(students).where(eq(students.kelas, kelas)).all();
+      const studentIds = siswaKelas.map(s => s.id);
       
-      for (const s of siswaKelas) {
+      if (studentIds.length > 0) {
         let cond = and(
-           eq(spkScores.studentId, s.id),
+           inArray(spkScores.studentId, studentIds),
            eq(spkScores.criteriaId, criteriaId),
            eq(spkScores.periode, periode)
         );
 
         if (mapel) {
            cond = and(cond, eq(spkScores.mapel, mapel));
+        } else {
+           cond = and(
+             cond,
+             sql`(${spkScores.mapel} IS NULL OR ${spkScores.mapel} = 'Umum' OR ${spkScores.mapel} = '')`
+           );
         }
 
-        if (!mapel) {
-           const allRecords = await tx.select().from(spkScores).where(cond).all();
-           for (const rec of allRecords) {
-              if (!rec.mapel || rec.mapel === "Umum") {
-                 await tx.delete(spkScores).where(eq(spkScores.id, rec.id));
-              }
-           }
-        } else {
-           await tx.delete(spkScores).where(cond);
-        }
+        await tx.delete(spkScores).where(cond);
       }
       
       // Also cleanup categories
