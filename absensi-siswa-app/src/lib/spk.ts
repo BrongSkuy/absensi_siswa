@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { spkScores, students, spkCriteria, attendance, academicYears, teacherClasses, teacherSubjects, classes as classesTable } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { DEFAULT_PERIODE } from "@/lib/utils";
 
 export async function calculateSPK(kelas: string, targetPeriode?: string) {
@@ -24,11 +24,35 @@ export async function calculateSPK(kelas: string, targetPeriode?: string) {
   // 3. Fetch Criteria
   const criteriaList = await db.select().from(spkCriteria).all();
 
-  // 4. Fetch SPK Scores filtered by active period
-  const allScores = await db.select().from(spkScores).where(eq(spkScores.periode, activePeriode)).all();
+  const studentIds = siswaKelas.map((s) => s.id);
 
-  // 5. Fetch Attendance filtered by active period
-  const allAttendance = await db.select().from(attendance).where(eq(attendance.periode, activePeriode)).all();
+  // 4. Fetch SPK Scores filtered by active period and optionally studentIds
+  const allScores = await db
+    .select()
+    .from(spkScores)
+    .where(
+      kelas === "all" || kelas === "umum"
+        ? eq(spkScores.periode, activePeriode)
+        : and(
+            eq(spkScores.periode, activePeriode),
+            inArray(spkScores.studentId, studentIds)
+          )
+    )
+    .all();
+
+  // 5. Fetch Attendance filtered by active period and optionally studentIds
+  const allAttendance = await db
+    .select()
+    .from(attendance)
+    .where(
+      kelas === "all" || kelas === "umum"
+        ? eq(attendance.periode, activePeriode)
+        : and(
+            eq(attendance.periode, activePeriode),
+            inArray(attendance.studentId, studentIds)
+          )
+    )
+    .all();
 
   // 6. Build raw Matrix
   const rawMatrix: Record<string, Record<string, number>> = {};
@@ -139,11 +163,35 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
   // 3. Fetch Criteria
   const criteriaList = await db.select().from(spkCriteria).all();
 
-  // 4. Fetch SPK Scores filtered by active period
-  const allScores = await db.select().from(spkScores).where(eq(spkScores.periode, activePeriode)).all();
+  const studentIds = siswaKelas.map((s) => s.id);
 
-  // 5. Fetch Attendance filtered by active period
-  const allAttendance = await db.select().from(attendance).where(eq(attendance.periode, activePeriode)).all();
+  // 4. Fetch SPK Scores filtered by active period and optionally studentIds
+  const allScores = await db
+    .select()
+    .from(spkScores)
+    .where(
+      kelas === "all" || kelas === "umum"
+        ? eq(spkScores.periode, activePeriode)
+        : and(
+            eq(spkScores.periode, activePeriode),
+            inArray(spkScores.studentId, studentIds)
+          )
+    )
+    .all();
+
+  // 5. Fetch Attendance filtered by active period and optionally studentIds
+  const allAttendance = await db
+    .select()
+    .from(attendance)
+    .where(
+      kelas === "all" || kelas === "umum"
+        ? eq(attendance.periode, activePeriode)
+        : and(
+            eq(attendance.periode, activePeriode),
+            inArray(attendance.studentId, studentIds)
+          )
+    )
+    .all();
 
   // 6. Fetch metadata for strict validation
   const classNames = [...new Set(siswaKelas.map(s => s.kelas))];

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { attendance, students, academicYears, spkScores, spkCriteria } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -43,19 +43,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([]);
     }
 
+    const studentIds = siswaKelas.map((s) => s.id);
+
     // 2. Get all attendance records for these students in this PERIODE
-    const mAtt = await db.select().from(attendance).where(eq(attendance.periode, periode)).all();
-    let existingRecords = mAtt.filter((a) => siswaKelas.some(s => s.id === a.studentId));
+    let existingRecords = await db
+      .select()
+      .from(attendance)
+      .where(
+        and(
+          eq(attendance.periode, periode),
+          inArray(attendance.studentId, studentIds)
+        )
+      )
+      .all();
 
     const tanggal = searchParams.get("tanggal");
     if (tanggal) {
       existingRecords = existingRecords.filter((a) => a.tanggal === tanggal);
     }
 
-    // 3. Get spkScores
-    const mScores = await db.select().from(spkScores).where(eq(spkScores.periode, periode)).all();
+    // 3. Get spkScores and criteria
+    let existingScores = await db
+      .select()
+      .from(spkScores)
+      .where(
+        and(
+          eq(spkScores.periode, periode),
+          inArray(spkScores.studentId, studentIds)
+        )
+      )
+      .all();
     const mCriteria = await db.select().from(spkCriteria).where(eq(spkCriteria.tipe, "Manual")).all();
-    let existingScores = mScores.filter((sc) => siswaKelas.some(s => s.id === sc.studentId));
 
     const mapel = searchParams.get("mapel");
     if (mapel && mapel !== "Semua Mata Pelajaran") {

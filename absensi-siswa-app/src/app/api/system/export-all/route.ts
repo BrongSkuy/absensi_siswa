@@ -29,6 +29,38 @@ export async function GET() {
 
     const wb = XLSX.utils.book_new();
 
+    // Pre-create Maps to optimize lookups to O(1)
+    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+    const teacherMap = new Map(allTeachers.map(t => [t.id, t]));
+    const criteriaMap = new Map(allCriteria.map(c => [c.id, c]));
+
+    // Group teacher subjects by teacherId
+    const teacherSubjsMap = new Map<string, string[]>();
+    for (const ts of allTeacherSubjects) {
+      let subjs = teacherSubjsMap.get(ts.teacherId);
+      if (!subjs) {
+        subjs = [];
+        teacherSubjsMap.set(ts.teacherId, subjs);
+      }
+      subjs.push(ts.namaMapel);
+    }
+
+    // Map of mapel to classes where attendance has been taken
+    const mapelClassesMap = new Map<string, Set<string>>();
+    for (const att of allAttendance) {
+      if (att.mapel) {
+        const student = studentMap.get(att.studentId);
+        if (student?.kelas) {
+          let set = mapelClassesMap.get(att.mapel);
+          if (!set) {
+            set = new Set();
+            mapelClassesMap.set(att.mapel, set);
+          }
+          set.add(student.kelas);
+        }
+      }
+    }
+
     // Sheet 1: Siswa
     const siswaData = allStudents.map(s => ({
       ID: s.id,
@@ -69,7 +101,7 @@ export async function GET() {
 
     // Sheet 5: Absensi
     const absensiData = allAttendance.map(a => {
-      const student = allStudents.find(s => s.id === a.studentId);
+      const student = studentMap.get(a.studentId);
       return {
         Tanggal: a.tanggal,
         NIS: student?.nis || a.studentId,
@@ -83,8 +115,8 @@ export async function GET() {
 
     // Sheet 6: Nilai SPK
     const nilaiData = allScores.map(sc => {
-      const student = allStudents.find(s => s.id === sc.studentId);
-      const crit = allCriteria.find(c => c.id === sc.criteriaId);
+      const student = studentMap.get(sc.studentId);
+      const crit = criteriaMap.get(sc.criteriaId);
       return {
         NIS: student?.nis || sc.studentId,
         NamaSiswa: student?.namaLengkap || "-",
@@ -125,18 +157,16 @@ export async function GET() {
 
     // 2) From attendance records: find which classes each teacher's subjects have been used in
     for (const teacher of allTeachers) {
-      const teacherSubjNames = allTeacherSubjects
-        .filter(ts => ts.teacherId === teacher.id)
-        .map(ts => ts.namaMapel);
-
+      const teacherSubjNames = teacherSubjsMap.get(teacher.id) || [];
       if (teacherSubjNames.length === 0) continue;
 
-      // Find distinct classes from attendance where mapel matches teacher's subjects
       const classesFromAtt = new Set<string>();
-      for (const att of allAttendance) {
-        if (att.mapel && teacherSubjNames.includes(att.mapel)) {
-          const student = allStudents.find(s => s.id === att.studentId);
-          if (student?.kelas) classesFromAtt.add(student.kelas);
+      for (const subjName of teacherSubjNames) {
+        const classesForSubj = mapelClassesMap.get(subjName);
+        if (classesForSubj) {
+          for (const c of classesForSubj) {
+            classesFromAtt.add(c);
+          }
         }
       }
 
@@ -158,7 +188,7 @@ export async function GET() {
 
     // Sheet 8b: Guru-Mapel
     const tSubjData = allTeacherSubjects.map(ts => {
-      const teacher = allTeachers.find(t => t.id === ts.teacherId);
+      const teacher = teacherMap.get(ts.teacherId);
       return { NIP: teacher?.nip || ts.teacherId, NamaGuru: teacher?.namaLengkap || "-", Mapel: ts.namaMapel, Periode: ts.periode };
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(guruKelasRows.length > 0 ? guruKelasRows : [{}]), "Guru-Kelas");
