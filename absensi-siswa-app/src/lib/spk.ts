@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { spkScores, students, spkCriteria, attendance, academicYears, teacherClasses, teacherSubjects, classes as classesTable } from "@/db/schema";
+import { spkScores, students, spkCriteria, attendance, academicYears, teacherClasses, teacherSubjects, classes as classesTable, subjects, spkGradingCategories } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { DEFAULT_PERIODE } from "@/lib/utils";
 
@@ -217,22 +217,43 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
   // 6. Fetch metadata for strict validation
   const classNames = [...new Set(siswaKelas.map(s => s.kelas))];
   const classMeta = await db.select().from(classesTable).all();
-  const allTeacherClasses = await db.select().from(teacherClasses).all();
-  const allTeacherSubjects = await db.select().from(teacherSubjects).where(eq(teacherSubjects.periode, activePeriode)).all();
 
-  // Construct sets for O(1) checks
-  // scoreKey format: studentId:criteriaId:mapelKey
-  const scoreKeys = new Set<string>();
+  // Fetch all curriculum subjects from the subjects table
+  const subjectsList = await db.select().from(subjects).all();
+  const curriculumMapels = subjectsList.map(s => s.namaMapel);
+
+  // Fetch all dynamic grading category configs
+  const allGradingCategories = await db
+    .select()
+    .from(spkGradingCategories)
+    .where(eq(spkGradingCategories.periode, activePeriode))
+    .all();
+
+  // Construct lookup maps for O(1) checks
+  // scoresMap key: studentId:criteriaId:mapelKey
+  const scoresMap = new Map<string, typeof allScores[0]>();
   allScores.forEach(sc => {
     const mapelKey = sc.mapel && sc.mapel !== "Umum" ? sc.mapel : "Umum";
-    scoreKeys.add(`${sc.studentId}:${sc.criteriaId}:${mapelKey}`);
+    scoresMap.set(`${sc.studentId}:${sc.criteriaId}:${mapelKey}`, sc);
   });
 
-  // attendanceKey format: studentId:mapelKey
+  // attendanceKeys format: studentId:mapelKey
   const attendanceKeys = new Set<string>();
   allAttendance.forEach(a => {
     const mapelKey = a.mapel && a.mapel !== "Umum" ? a.mapel : "Umum";
     attendanceKeys.add(`${a.studentId}:${mapelKey}`);
+  });
+
+  // gradingCategoriesMap key: kelas:criteriaId:mapelKey
+  const gradingCategoriesMap = new Map<string, string[]>();
+  allGradingCategories.forEach(gc => {
+    const mapelKey = gc.mapel && gc.mapel !== "Umum" ? gc.mapel : "Umum";
+    const key = `${gc.kelas}:${gc.criteriaId}:${mapelKey}`;
+    try {
+      gradingCategoriesMap.set(key, JSON.parse(gc.categories));
+    } catch (e) {
+      gradingCategoriesMap.set(key, []);
+    }
   });
 
   const missingEntries: Array<{
@@ -245,19 +266,12 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
   }> = [];
 
   for (const cName of classNames) {
-    const requiredMapels = new Set<string>();
+    const requiredMapels = new Set<string>(curriculumMapels);
     
     // Add "Umum" if class has Wali Kelas
     const classInfo = classMeta.find(c => c.namaKelas === cName);
     if (classInfo?.waliKelas) {
       requiredMapels.add("Umum");
-    }
-
-    // Add subjects taught by teachers assigned to this class
-    const assignedTeachers = allTeacherClasses.filter(tc => tc.kelas === cName);
-    for (const at of assignedTeachers) {
-      const subjectsForTeacher = allTeacherSubjects.filter(ts => ts.teacherId === at.teacherId);
-      subjectsForTeacher.forEach(ts => requiredMapels.add(ts.namaMapel));
     }
 
     // Get active students in this class
@@ -273,7 +287,6 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
       );
 
       if (studentsMissingAttendance.length === studentsInThisClass.length) {
-        // If ALL active students in the class are missing attendance for this mapel, report a single group warning
         missingEntries.push({
           studentId: "ALL",
           studentName: "Semua Siswa",
@@ -283,7 +296,6 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
           reason: `Guru mapel ${mapel} belum mengisi absensi sama sekali`
         });
       } else if (studentsMissingAttendance.length > 0) {
-        // If only SOME students are missing, list them individually
         studentsMissingAttendance.forEach(s => {
           missingEntries.push({
             studentId: s.id,
@@ -298,12 +310,58 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
 
       // 2. Check Scores (Manual)
       for (const c of manualCriteriaList) {
-        const studentsMissingScore = studentsInThisClass.filter(
-          s => !scoreKeys.has(`${s.id}:${c.id}:${mapel}`)
-        );
+        const isAcademic = c.namaKriteria.toLowerCase().includes("akademik");
+
+        let categoriesRequired: string[] = [];
+        if (isAcademic) {
+          categoriesRequired = gradingCategoriesMap.get(`${cName}:${c.id}:${mapel}`) || [];
+        } else {
+          categoriesRequired = ["Nilai"];
+        }
+
+        if (isAcademic && categoriesRequired.length === 0) {
+          // If no categories are configured for academic criteria, report group error
+          missingEntries.push({
+            studentId: "ALL",
+            studentName: "Semua Siswa",
+            kelas: cName,
+            criteriaId: c.id,
+            criteriaName: `${c.namaKriteria} (${mapel})`,
+            reason: `Guru mapel ${mapel} belum mengatur kategori penilaian (Tugas, UTS, UAS, dll)`
+          });
+          continue;
+        }
+
+        // Check each student for missing scores or empty categories
+        const studentsMissingScore: Array<{ student: typeof siswaKelas[0]; missingCats: string[] }> = [];
+
+        studentsInThisClass.forEach(s => {
+          const scoreRecord = scoresMap.get(`${s.id}:${c.id}:${mapel}`);
+
+          if (!scoreRecord) {
+            studentsMissingScore.push({ student: s, missingCats: categoriesRequired });
+          } else {
+            let detailsObj: Record<string, number> = {};
+            if (scoreRecord.details) {
+              try {
+                detailsObj = JSON.parse(scoreRecord.details);
+              } catch (e) {
+                detailsObj = {};
+              }
+            }
+
+            const missingCats = categoriesRequired.filter(cat => {
+              const val = detailsObj[cat];
+              return val === undefined || val === null || isNaN(parseFloat(String(val)));
+            });
+
+            if (missingCats.length > 0) {
+              studentsMissingScore.push({ student: s, missingCats });
+            }
+          }
+        });
 
         if (studentsMissingScore.length === studentsInThisClass.length) {
-          // If ALL active students in the class are missing scores for this criteria and mapel, report a single group warning
           missingEntries.push({
             studentId: "ALL",
             studentName: "Semua Siswa",
@@ -313,15 +371,14 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
             reason: `Guru mapel ${mapel} belum mengisi nilai kriteria ${c.namaKriteria} sama sekali`
           });
         } else if (studentsMissingScore.length > 0) {
-          // If only SOME students are missing, list them individually
-          studentsMissingScore.forEach(s => {
+          studentsMissingScore.forEach(({ student, missingCats }) => {
             missingEntries.push({
-              studentId: s.id,
-              studentName: s.namaLengkap,
+              studentId: student.id,
+              studentName: student.namaLengkap,
               kelas: cName,
               criteriaId: c.id,
               criteriaName: `${c.namaKriteria} (${mapel})`,
-              reason: `Nilai kriteria ${c.namaKriteria} untuk mata pelajaran ${mapel} belum diisi`
+              reason: `Nilai kriteria ${c.namaKriteria} mata pelajaran ${mapel} belum lengkap (${missingCats.join(", ")})`
             });
           });
         }
