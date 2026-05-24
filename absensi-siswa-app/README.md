@@ -24,10 +24,17 @@ Buat file baru bernama `.env` di folder root `absensi-siswa-app` (atau duplikasi
 ```env
 BETTER_AUTH_SECRET=pilih_bebas_kata_sandi_rahasia_anda_disini
 BETTER_AUTH_URL=http://localhost:3000
-TURSO_DATABASE_URL=libsql://absensi-siswa-brongskuy.aws-ap-northeast-1.turso.io
-TURSO_AUTH_TOKEN=masukkan_auth_token_anda_disini
+
+# Kredensial Turso Database (Cloud / Lokal)
+TURSO_DATABASE_URL=libsql://nama-database-sekolah-anda.turso.io
+TURSO_AUTH_TOKEN=masukkan_auth_token_database_sekolah_disini
 ```
-*Tips: Anda bisa membuat secret otomatis dengan menjalankan `npx better-auth secret`.*
+*Tips:*
+- Anda bisa membuat secret otomatis dengan menjalankan `npx better-auth secret`.
+- **Mode Cloud (Sekolah/Produksi)**: Ganti URL dan token di atas dengan kredensial database Turso milik sekolah Anda.
+- **Mode Lokal (Development)**: Jika ingin menggunakan database lokal tanpa cloud Turso, ganti nilai `TURSO_DATABASE_URL` menjadi `file:local.db` dan biarkan `TURSO_AUTH_TOKEN` kosong.
+
+
 ### 4. Setup Database
 Project ini menggunakan SQLite sehingga tidak butuh server database tambahan. Jalankan dua perintah ini untuk menyiapkan tabel dan data awal:
 
