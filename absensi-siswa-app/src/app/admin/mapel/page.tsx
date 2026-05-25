@@ -55,7 +55,6 @@ export default function AdminMapelPage() {
   const [formName, setFormName] = useState("");
   const [formGuru, setFormGuru] = useState("");
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
-  const [newClassName, setNewClassName] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -92,56 +91,10 @@ export default function AdminMapelPage() {
     setFormName("");
     setFormGuru("none");
     setSelectedClasses([]);
-    setNewClassName("");
     setEditId(null);
   };
 
-  const handleAddNewClass = async () => {
-    const trimmed = newClassName.trim().toUpperCase();
-    if (!trimmed) return;
 
-    // Check duplicate in classesList
-    const exists = classesList.some((c) => c.namaKelas.toLowerCase() === trimmed.toLowerCase());
-    if (exists) {
-      alert(`Kelas "${trimmed}" sudah terdaftar di data kelas!`);
-      return;
-    }
-
-    try {
-      // Determine tingkat from name (e.g. XII-B -> XII, XI-A -> XI, X-C -> X)
-      let tingkat = "X";
-      if (trimmed.startsWith("XII")) {
-        tingkat = "XII";
-      } else if (trimmed.startsWith("XI")) {
-        tingkat = "XI";
-      } else if (trimmed.startsWith("X")) {
-        tingkat = "X";
-      } else {
-        tingkat = trimmed.split("-")[0] || "X";
-      }
-
-      const res = await fetch("/api/classes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ namaKelas: trimmed, tingkat }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Gagal menambahkan kelas");
-      }
-
-      const newCls = await res.json();
-      toast.success(`Kelas ${trimmed} berhasil ditambahkan!`);
-      
-      // Update list and auto select it
-      setClassesList((prev) => [...prev, { id: newCls.id, namaKelas: newCls.namaKelas }]);
-      setSelectedClasses((prev) => [...prev, newCls.namaKelas]);
-      setNewClassName("");
-    } catch (e: any) {
-      toast.error(e.message || "Gagal menambahkan kelas");
-    }
-  };
 
   const handleCreate = async () => {
     if (!formName) {
@@ -288,7 +241,7 @@ export default function AdminMapelPage() {
                 <Label>Kelas yang Diampu</Label>
                 <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-slate-50/50 max-h-[160px] overflow-y-auto">
                   {classesList.length === 0 ? (
-                    <span className="text-xs text-muted-foreground">Belum ada data kelas.</span>
+                    <span className="text-xs text-muted-foreground">Belum ada data kelas. Silakan tambahkan kelas terlebih dahulu di menu Data Kelas.</span>
                   ) : (
                     classesList.map((cls) => {
                       const isChecked = selectedClasses.includes(cls.namaKelas);
@@ -319,25 +272,6 @@ export default function AdminMapelPage() {
                       );
                     })
                   )}
-                </div>
-                
-                {/* Inline Add Class */}
-                <div className="flex items-center gap-2 pt-1">
-                  <Input
-                    placeholder="Nama kelas baru (misal: XII-A)"
-                    value={newClassName}
-                    onChange={(e) => setNewClassName(e.target.value)}
-                    className="h-8 text-xs max-w-[200px]"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs bg-slate-50 hover:bg-slate-100"
-                    onClick={handleAddNewClass}
-                  >
-                    Tambah Kelas
-                  </Button>
                 </div>
               </div>
             </div>
@@ -387,7 +321,7 @@ export default function AdminMapelPage() {
                 <Label>Kelas yang Diampu</Label>
                 <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-slate-50/50 max-h-[160px] overflow-y-auto">
                   {classesList.length === 0 ? (
-                    <span className="text-xs text-muted-foreground">Belum ada data kelas.</span>
+                    <span className="text-xs text-muted-foreground">Belum ada data kelas. Silakan tambahkan kelas terlebih dahulu di menu Data Kelas.</span>
                   ) : (
                     classesList.map((cls) => {
                       const isChecked = selectedClasses.includes(cls.namaKelas);
@@ -418,25 +352,6 @@ export default function AdminMapelPage() {
                       );
                     })
                   )}
-                </div>
-                
-                {/* Inline Add Class */}
-                <div className="flex items-center gap-2 pt-1">
-                  <Input
-                    placeholder="Nama kelas baru (misal: XII-A)"
-                    value={newClassName}
-                    onChange={(e) => setNewClassName(e.target.value)}
-                    className="h-8 text-xs max-w-[200px]"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs bg-slate-50 hover:bg-slate-100"
-                    onClick={handleAddNewClass}
-                  >
-                    Tambah Kelas
-                  </Button>
                 </div>
               </div>
             </div>
