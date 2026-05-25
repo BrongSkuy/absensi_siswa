@@ -81,7 +81,7 @@ async function seed() {
       const user = await auth.api.signUpEmail({
         body: {
           email: `${t.nip}@sekolah.id`,
-          password: "guru1234",
+          password: t.nip, // default password set to NIP
           name: t.nama,
           username: t.nip,
           appRole: "GURU",
@@ -95,7 +95,7 @@ async function seed() {
         status: "aktif",
       });
 
-      console.log(`   ✅ Guru: ${t.nip} / guru1234 — ${t.nama}`);
+      console.log(`   ✅ Guru: ${t.nip} / ${t.nip} — ${t.nama}`);
     } catch {
       console.log(`   ⏭️ Guru ${t.nip} already exists, skipping...`);
     }
@@ -312,9 +312,9 @@ async function seed() {
   console.log("\n✨ Seeding complete!\n");
   console.log("=== LOGIN CREDENTIALS ===");
   console.log("Admin  : admin001 / admin123");
-  console.log("Guru   : 197601012005 / guru1234 (Budi Santoso)");
-  console.log("Guru   : 198203152008 / guru1234 (Siti Rahayu)");
-  console.log("Guru   : 199005202012 / guru1234 (Ahmad Fauzi)");
+  console.log("Guru   : 197601012005 / 197601012005 (Budi Santoso)");
+  console.log("Guru   : 198203152008 / 198203152008 (Siti Rahayu)");
+  console.log("Guru   : 199005202012 / 199005202012 (Ahmad Fauzi)");
   console.log("Siswa  : 2024001 / 2024001 (Andi Prasetyo, X-A)");
   console.log("Siswa  : 2024002 / 2024002 (Dewi Lestari, X-A)");
   console.log("...dan 13 siswa lainnya (NIS = password)");
