@@ -195,10 +195,12 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
     .select()
     .from(spkScores)
     .where(
-      and(
-        eq(spkScores.periode, activePeriode),
-        inArray(spkScores.studentId, studentIds)
-      )
+      kelas === "all" || kelas === "umum"
+        ? eq(spkScores.periode, activePeriode)
+        : and(
+            eq(spkScores.periode, activePeriode),
+            inArray(spkScores.studentId, studentIds)
+          )
     )
     .all();
 
@@ -207,10 +209,12 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
     .select()
     .from(attendance)
     .where(
-      and(
-        eq(attendance.periode, activePeriode),
-        inArray(attendance.studentId, studentIds)
-      )
+      kelas === "all" || kelas === "umum"
+        ? eq(attendance.periode, activePeriode)
+        : and(
+            eq(attendance.periode, activePeriode),
+            inArray(attendance.studentId, studentIds)
+          )
     )
     .all();
 
