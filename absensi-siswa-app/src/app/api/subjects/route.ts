@@ -12,7 +12,18 @@ export async function GET() {
   }
 
   const result = await db.select().from(subjects).all();
-  return NextResponse.json(result);
+  
+  // Deduplicate by namaMapel
+  const seen = new Set<string>();
+  const uniqueSubjects = [];
+  for (const item of result) {
+    if (!seen.has(item.namaMapel)) {
+      seen.add(item.namaMapel);
+      uniqueSubjects.push(item);
+    }
+  }
+
+  return NextResponse.json(uniqueSubjects);
 }
 
 // POST /api/subjects — create a new subject

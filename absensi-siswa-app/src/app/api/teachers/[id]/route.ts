@@ -19,65 +19,88 @@ export async function PUT(
   const body = await request.json();
 
   try {
-    // Build update payload — include nip only if provided
-    const updatePayload: Record<string, unknown> = {
-      namaLengkap: body.namaLengkap,
-      status: body.status,
-    };
-    if (body.nip) {
-      updatePayload.nip = body.nip;
-    }
+    const updated = await db.transaction(async (tx) => {
+      // Build update payload — include nip only if provided
+      const updatePayload: Record<string, unknown> = {
+        namaLengkap: body.namaLengkap,
+        status: body.status,
+      };
+      if (body.nip) {
+        updatePayload.nip = body.nip;
+      }
 
-    const [updated] = await db
-      .update(teachers)
-      .set(updatePayload)
-      .where(eq(teachers.id, id))
-      .returning();
+      const [updatedTeacher] = await tx
+        .update(teachers)
+        .set(updatePayload)
+        .where(eq(teachers.id, id))
+        .returning();
 
-    if (!updated) {
-      return NextResponse.json({ error: "Guru tidak ditemukan" }, { status: 404 });
-    }
+      if (!updatedTeacher) {
+        throw new Error("NOT_FOUND");
+      }
 
-    // Sync auth user table: name, username (NIP), and email
-    if (updated.userId) {
-      const { user } = await import("@/db/auth-schema");
-      await db
-        .update(user)
-        .set({ 
-          name: updated.namaLengkap,
-          username: updated.nip,
-          email: `${updated.nip}@sekolah.id`,
-        })
-        .where(eq(user.id, updated.userId))
-        .run();
-    }
+      // Sync auth user table: name, username (NIP), and email
+      if (updatedTeacher.userId) {
+        const { user } = await import("@/db/auth-schema");
+        await tx
+          .update(user)
+          .set({ 
+            name: updatedTeacher.namaLengkap,
+            username: updatedTeacher.nip,
+            email: `${updatedTeacher.nip}@sekolah.id`,
+          })
+          .where(eq(user.id, updatedTeacher.userId))
+          .run();
+      }
 
-    if (body.mataPelajaran) {
-       // Removed activeYear check since we sync globally
-       await db.delete(teacherSubjects).where(eq(teacherSubjects.teacherId, id));
-       
-       if (Array.isArray(body.mataPelajaran) && body.mataPelajaran.length > 0) {
-          const { subjects } = await import("@/db/schema");
-          for (const mapel of body.mataPelajaran) {
-             await db.insert(teacherSubjects).values({
-                teacherId: id,
-                namaMapel: String(mapel),
-             });
-             
-             // Check if subject exists globally, if not create it
-             const existingSubject = await db.select().from(subjects).where(eq(subjects.namaMapel, String(mapel)));
-             if (existingSubject.length === 0) {
-                await db.insert(subjects).values({
-                   namaMapel: String(mapel),
-                   guruPengampu: body.namaLengkap
-                });
-             }
-          }
-       }
-    }
+      if (body.mataPelajaran) {
+         await tx.delete(teacherSubjects).where(eq(teacherSubjects.teacherId, id));
+         
+         if (Array.isArray(body.mataPelajaran) && body.mataPelajaran.length > 0) {
+            const { subjects } = await import("@/db/schema");
+            for (const mapel of body.mataPelajaran) {
+               await tx.insert(teacherSubjects).values({
+                  teacherId: id,
+                  namaMapel: String(mapel),
+               });
+               
+               // Check if subject exists globally, if not create it
+               const existingSubject = await tx.select().from(subjects).where(eq(subjects.namaMapel, String(mapel)));
+               if (existingSubject.length === 0) {
+                  await tx.insert(subjects).values({
+                     namaMapel: String(mapel),
+                     guruPengampu: body.namaLengkap
+                  });
+               }
+            }
+         }
+      }
+
+      if (body.kelasDiampu) {
+         const { teacherClasses } = await import("@/db/schema");
+         await tx.delete(teacherClasses).where(eq(teacherClasses.teacherId, id));
+         
+         if (Array.isArray(body.kelasDiampu) && body.kelasDiampu.length > 0) {
+            for (const kelasVal of body.kelasDiampu) {
+               const cleanedKelas = String(kelasVal).trim();
+               if (cleanedKelas) {
+                  await tx.insert(teacherClasses).values({
+                     teacherId: id,
+                     kelas: cleanedKelas,
+                  });
+               }
+            }
+         }
+      }
+
+      return updatedTeacher;
+    });
 
     return NextResponse.json(updated);
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === "NOT_FOUND") {
+      return NextResponse.json({ error: "Guru tidak ditemukan" }, { status: 404 });
+    }
     const message = error instanceof Error ? error.message : "Gagal mengupdate data guru";
     return NextResponse.json({ error: message }, { status: 500 });
   }

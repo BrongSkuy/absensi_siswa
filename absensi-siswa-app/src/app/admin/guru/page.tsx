@@ -25,6 +25,7 @@ interface TeacherRow {
   nip: string;
   namaLengkap: string;
   mataPelajaran?: string[];
+  kelasDiampu?: string[];
   status: "aktif" | "nonaktif";
 }
 
@@ -41,6 +42,7 @@ export default function AdminGuruPage() {
   const [formNip, setFormNip] = useState("");
   const [formNama, setFormNama] = useState("");
   const [formMapel, setFormMapel] = useState("");
+  const [formKelas, setFormKelas] = useState("");
   const [formStatus, setFormStatus] = useState("aktif");
 
   const fetchData = useCallback(async () => {
@@ -69,6 +71,7 @@ export default function AdminGuruPage() {
     setFormNip("");
     setFormNama("");
     setFormMapel("");
+    setFormKelas("");
     setFormStatus("aktif");
     setEditId(null);
   };
@@ -81,6 +84,7 @@ export default function AdminGuruPage() {
     setSaving(true);
     try {
       const payloadMapel = formMapel.split(",").map(m => m.trim()).filter(Boolean);
+      const payloadKelas = formKelas.split(",").map(k => k.trim()).filter(Boolean);
 
       const res = await fetch("/api/teachers", {
         method: "POST",
@@ -88,7 +92,8 @@ export default function AdminGuruPage() {
         body: JSON.stringify({ 
            nip: formNip, 
            namaLengkap: formNama,
-           mataPelajaran: payloadMapel 
+           mataPelajaran: payloadMapel,
+           kelasDiampu: payloadKelas
         }),
       });
 
@@ -114,6 +119,7 @@ export default function AdminGuruPage() {
     setFormNip(guru.nip);
     setFormNama(guru.namaLengkap);
     setFormMapel(guru.mataPelajaran ? guru.mataPelajaran.join(", ") : "");
+    setFormKelas(guru.kelasDiampu ? guru.kelasDiampu.join(", ") : "");
     setFormStatus(guru.status);
     setEditOpen(true);
   };
@@ -126,6 +132,7 @@ export default function AdminGuruPage() {
     setSaving(true);
     try {
       const payloadMapel = formMapel.split(",").map(m => m.trim()).filter(Boolean);
+      const payloadKelas = formKelas.split(",").map(k => k.trim()).filter(Boolean);
       
       const res = await fetch(`/api/teachers/${editId}`, {
         method: "PUT",
@@ -134,6 +141,7 @@ export default function AdminGuruPage() {
           nip: formNip,
           namaLengkap: formNama,
           mataPelajaran: payloadMapel,
+          kelasDiampu: payloadKelas,
           status: formStatus,
         }),
       });
@@ -208,6 +216,11 @@ export default function AdminGuruPage() {
                 <Input id="mapel" placeholder="Contoh: Matematika, Fisika (pisahkan koma)" value={formMapel} onChange={(e) => setFormMapel(e.target.value)} />
                 <p className="text-xs text-muted-foreground">Pisahkan dengan koma jika lebih dari satu mapel.</p>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="kelas-diampu">Kelas yang Diampu</Label>
+                <Input id="kelas-diampu" placeholder="Contoh: X-A, X-B (pisahkan koma)" value={formKelas} onChange={(e) => setFormKelas(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Pisahkan dengan koma jika lebih dari satu kelas.</p>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Batal</Button>
@@ -239,6 +252,10 @@ export default function AdminGuruPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit-mapel">Mata Pelajaran yang Diampu</Label>
                 <Input id="edit-mapel" placeholder="Contoh: Matematika, Fisika" value={formMapel} onChange={(e) => setFormMapel(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-kelas-diampu">Kelas yang Diampu</Label>
+                <Input id="edit-kelas-diampu" placeholder="Contoh: X-A, X-B" value={formKelas} onChange={(e) => setFormKelas(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-status">Status</Label>
@@ -282,6 +299,7 @@ export default function AdminGuruPage() {
                 <TableHead>NIP</TableHead>
                 <TableHead>Nama Lengkap</TableHead>
                 <TableHead>Mapel Diampu</TableHead>
+                <TableHead>Kelas Diampu</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right pr-6">Aksi</TableHead>
               </TableRow>
@@ -289,7 +307,7 @@ export default function AdminGuruPage() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                     Tidak ada data guru yang ditemukan
                   </TableCell>
                 </TableRow>
@@ -303,6 +321,13 @@ export default function AdminGuruPage() {
                        <div className="flex flex-wrap gap-1">
                           {guru.mataPelajaran && guru.mataPelajaran.length > 0 ? guru.mataPelajaran.map(m => (
                              <Badge key={m} variant="secondary" className="text-xs">{m}</Badge>
+                          )) : <span className="text-xs text-muted-foreground">-</span>}
+                       </div>
+                    </TableCell>
+                    <TableCell>
+                       <div className="flex flex-wrap gap-1">
+                          {guru.kelasDiampu && guru.kelasDiampu.length > 0 ? guru.kelasDiampu.map(k => (
+                             <Badge key={k} variant="outline" className="text-xs border-navy-300 text-navy-700 bg-navy-50/50">{k}</Badge>
                           )) : <span className="text-xs text-muted-foreground">-</span>}
                        </div>
                     </TableCell>

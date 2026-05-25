@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { teachers, teacherSubjects } from "@/db/schema";
+import { teachers, teacherSubjects, teacherClasses } from "@/db/schema";
 import { like, or, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -33,13 +33,16 @@ export async function GET(request: NextRequest) {
 
   const result = await query.all();
 
-  const subjects = await db.select().from(teacherSubjects).all();
+  const allSubjects = await db.select().from(teacherSubjects).all();
+  const allClasses = await db.select().from(teacherClasses).all();
 
   const formattedResult = result.map((t) => {
-    const tSubjects = subjects.filter((s) => s.teacherId === t.id).map(s => s.namaMapel);
+    const tSubjects = Array.from(new Set(allSubjects.filter((s) => s.teacherId === t.id).map(s => s.namaMapel)));
+    const tClasses = allClasses.filter((c) => c.teacherId === t.id).map(c => c.kelas);
     return {
       ...t,
-      mataPelajaran: tSubjects
+      mataPelajaran: tSubjects,
+      kelasDiampu: tClasses
     };
   });
 
@@ -55,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { nip, namaLengkap, mataPelajaran } = body;
+    const { nip, namaLengkap, mataPelajaran, kelasDiampu } = body;
 
     if (!nip || !namaLengkap) {
       return NextResponse.json({ error: "NIP dan nama wajib diisi" }, { status: 400 });
@@ -104,6 +107,18 @@ export async function POST(request: NextRequest) {
              namaMapel: String(mapel),
              guruPengampu: teacher.namaLengkap
            });
+        }
+      }
+    }
+
+    if (kelasDiampu && Array.isArray(kelasDiampu) && kelasDiampu.length > 0) {
+      for (const kelasVal of kelasDiampu) {
+        const cleanedKelas = String(kelasVal).trim();
+        if (cleanedKelas) {
+          await db.insert(teacherClasses).values({
+            teacherId: teacher.id,
+            kelas: cleanedKelas,
+          });
         }
       }
     }
