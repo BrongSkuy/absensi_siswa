@@ -40,6 +40,7 @@ interface ClassData {
 
 interface SubjectData {
   namaMapel: string;
+  kelas?: string[];
 }
 
 export default function GuruRekapPage() {
@@ -47,7 +48,7 @@ export default function GuruRekapPage() {
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [selectedTanggal, setSelectedTanggal] = useState<string>("");
   const [selectedMapel, setSelectedMapel] = useState<string>("Semua Mata Pelajaran");
-  const [subjects, setSubjects] = useState<string[]>([]);
+  const [subjects, setSubjects] = useState<SubjectData[]>([]);
   const [isWaliKelas, setIsWaliKelas] = useState(false);
   const [waliClasses, setWaliClasses] = useState<string[]>([]);
   const [rekapData, setRekapData] = useState<StudentRekap[]>([]);
@@ -76,7 +77,7 @@ export default function GuruRekapPage() {
 
         setIsWaliKelas(isWali);
         setWaliClasses(wClasses);
-        setSubjects(subjectsData.map((s: SubjectData) => s.namaMapel));
+        setSubjects(subjectsData);
 
         const filteredClasses = classesData.filter((c: ClassData) => assignedClasses.includes(c.namaKelas));
 
@@ -228,9 +229,13 @@ export default function GuruRekapPage() {
                           {isWaliKelas && waliClasses.includes(selectedClass) && (
                             <SelectItem value="Umum">Umum / Wali Kelas</SelectItem>
                           )}
-                          {subjects.map((m, i) => (
-                            <SelectItem key={i} value={m}>{m}</SelectItem>
-                          ))}
+                          {subjects
+                            .filter((m) => m.kelas?.includes(selectedClass))
+                            .map((m, i) => (
+                              <SelectItem key={i} value={m.namaMapel}>
+                                {m.namaMapel}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                       <Input

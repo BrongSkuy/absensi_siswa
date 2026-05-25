@@ -91,23 +91,35 @@ export async function GET() {
           .where(inArray(classes.namaKelas, allClassNames))
           .all();
         
-        assignedClasses = fullClasses.map(c => {
-          const classSubjects = [...teacherSubjectNames];
-          
-          if (c.waliKelas === teacher.namaLengkap) {
-            if (!classSubjects.includes("Umum")) {
-               classSubjects.push("Umum");
+        assignedClasses = fullClasses
+          .map(c => {
+            const classSubjects: string[] = [];
+            
+            // Filter mySubjects that apply to this class c.namaKelas
+            for (const s of mySubjects) {
+              if (s.kelas) {
+                const classesList = s.kelas.split(",").map(k => k.trim());
+                if (classesList.includes(c.namaKelas)) {
+                  classSubjects.push(s.mapel);
+                }
+              }
             }
-          }
 
-          return {
-            id: c.id,
-            namaKelas: c.namaKelas,
-            tingkat: c.tingkat,
-            waliKelas: c.waliKelas,
-            subjects: [...new Set(classSubjects)],
-          };
-        });
+            if (c.waliKelas === teacher.namaLengkap) {
+              if (!classSubjects.includes("Umum")) {
+                 classSubjects.push("Umum");
+              }
+            }
+
+            return {
+              id: c.id,
+              namaKelas: c.namaKelas,
+              tingkat: c.tingkat,
+              waliKelas: c.waliKelas,
+              subjects: [...new Set(classSubjects)],
+            };
+          })
+          .filter(c => c.subjects.length > 0);
       }
     } else if (appRole === "ADMIN") {
        const allFullClasses = await db.select().from(classes).all();

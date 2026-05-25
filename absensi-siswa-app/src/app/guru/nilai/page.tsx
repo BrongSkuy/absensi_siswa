@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface KelasRow { id: string; namaKelas: string; }
-interface MapelRow { namaMapel: string; }
+interface MapelRow { namaMapel: string; kelas?: string[]; }
 interface CriteriaRow { id: string; namaKriteria: string; bobot: number; tipe: string; deskripsi: string; }
 interface ScoreStudent { studentId: string; nis: string; namaLengkap: string; nilai: number; details: Record<string, number>; scoreId: string | null; }
 
@@ -259,9 +259,11 @@ export default function GuruNilaiPage() {
                   {isWaliKelas && waliClasses.includes(selectedKelas) && (
                     <SelectItem value="Umum">Umum / Semua Mapel</SelectItem>
                   )}
-                  {subjects.map((s, i) => (
-                    <SelectItem key={i} value={s.namaMapel}>{s.namaMapel}</SelectItem>
-                  ))}
+                  {subjects
+                    .filter((s) => s.kelas?.includes(selectedKelas))
+                    .map((s, i) => (
+                      <SelectItem key={i} value={s.namaMapel}>{s.namaMapel}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

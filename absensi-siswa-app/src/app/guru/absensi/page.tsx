@@ -32,6 +32,7 @@ interface KelasRow {
 
 interface MapelRow {
   namaMapel: string;
+  kelas?: string[];
 }
 
 interface AttendanceStudent {
@@ -371,11 +372,13 @@ export default function GuruAbsensiPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {isWaliKelas && waliClasses.includes(selectedKelas) && <SelectItem value="Umum">Absen Pagi (Wali Kelas)</SelectItem>}
-                  {subjects.map((s, i) => (
-                    <SelectItem key={i} value={s.namaMapel}>
-                      {s.namaMapel}
-                    </SelectItem>
-                  ))}
+                  {subjects
+                    .filter((s) => s.kelas?.includes(selectedKelas))
+                    .map((s, i) => (
+                      <SelectItem key={i} value={s.namaMapel}>
+                        {s.namaMapel}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

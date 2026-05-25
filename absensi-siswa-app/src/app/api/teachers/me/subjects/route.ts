@@ -52,8 +52,11 @@ export async function GET() {
   // Combine waliClasses and assignedClasses uniquely
   const teacherClassNames = Array.from(new Set([...waliClasses, ...Array.from(assignedClasses)]));
 
-  // Get unique subjects mapped to this teacher
-  const subjects = Array.from(subjectNames).map(namaMapel => ({ namaMapel }));
+  // Get unique subjects mapped to this teacher with class lists
+  const subjects = mySubjects.map(s => ({
+    namaMapel: s.namaMapel,
+    kelas: s.kelas ? s.kelas.split(",").map(k => k.trim()) : []
+  }));
 
   return NextResponse.json({
     waliClasses,
