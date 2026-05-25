@@ -203,7 +203,13 @@ export default function AdminGuruPage() {
                 <Label htmlFor="jenis-kelamin">Jenis Kelamin</Label>
                 <Select value={formJK} onValueChange={(val) => setFormJK(val || "L")}>
                   <SelectTrigger id="jenis-kelamin">
-                    <SelectValue placeholder="Pilih jenis kelamin" />
+                    <SelectValue placeholder="Pilih jenis kelamin">
+                      {(value) => {
+                        if (value === "L") return "Laki-laki";
+                        if (value === "P") return "Perempuan";
+                        return "Pilih jenis kelamin";
+                      }}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="L">Laki-laki</SelectItem>
@@ -243,7 +249,13 @@ export default function AdminGuruPage() {
                 <Label htmlFor="edit-jenis-kelamin">Jenis Kelamin</Label>
                 <Select value={formJK} onValueChange={(val) => setFormJK(val || "L")}>
                   <SelectTrigger id="edit-jenis-kelamin">
-                    <SelectValue placeholder="Pilih jenis kelamin" />
+                    <SelectValue placeholder="Pilih jenis kelamin">
+                      {(value) => {
+                        if (value === "L") return "Laki-laki";
+                        if (value === "P") return "Perempuan";
+                        return "Pilih jenis kelamin";
+                      }}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="L">Laki-laki</SelectItem>
@@ -255,7 +267,13 @@ export default function AdminGuruPage() {
                 <Label htmlFor="edit-status">Status</Label>
                 <Select value={formStatus} onValueChange={(val) => setFormStatus(val || "")}>
                   <SelectTrigger id="edit-status">
-                    <SelectValue placeholder="Pilih status" />
+                    <SelectValue placeholder="Pilih status">
+                      {(value) => {
+                        if (value === "aktif") return "Aktif";
+                        if (value === "nonaktif") return "Nonaktif";
+                        return "Pilih status";
+                      }}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="aktif">Aktif</SelectItem>

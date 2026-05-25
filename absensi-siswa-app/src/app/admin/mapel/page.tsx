@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 interface SubjectRow {
   id: string;
@@ -33,6 +34,11 @@ interface TeacherRow {
   namaLengkap: string;
 }
 
+interface ClassOption {
+  id: string;
+  namaKelas: string;
+}
+
 export default function AdminMapelPage() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -41,24 +47,29 @@ export default function AdminMapelPage() {
   
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
+  const [classesList, setClassesList] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Form State
   const [formName, setFormName] = useState("");
   const [formGuru, setFormGuru] = useState("");
-  const [formKelas, setFormKelas] = useState("");
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [newClassName, setNewClassName] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
-      const [subjectRes, teacherRes] = await Promise.all([
+      const [subjectRes, teacherRes, classRes] = await Promise.all([
         fetch("/api/subjects"),
-        fetch("/api/teachers")
+        fetch("/api/teachers"),
+        fetch("/api/classes")
       ]);
       const subjectData = await subjectRes.json();
       const teacherData = await teacherRes.json();
+      const classData = await classRes.json();
       setSubjects(subjectData);
       setTeachers(teacherData);
+      setClassesList(classData);
     } catch {
       toast.error("Gagal memuat data");
     } finally {
@@ -80,8 +91,56 @@ export default function AdminMapelPage() {
   const resetForm = () => {
     setFormName("");
     setFormGuru("none");
-    setFormKelas("");
+    setSelectedClasses([]);
+    setNewClassName("");
     setEditId(null);
+  };
+
+  const handleAddNewClass = async () => {
+    const trimmed = newClassName.trim().toUpperCase();
+    if (!trimmed) return;
+
+    // Check duplicate in classesList
+    const exists = classesList.some((c) => c.namaKelas.toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      alert(`Kelas "${trimmed}" sudah terdaftar di data kelas!`);
+      return;
+    }
+
+    try {
+      // Determine tingkat from name (e.g. XII-B -> XII, XI-A -> XI, X-C -> X)
+      let tingkat = "X";
+      if (trimmed.startsWith("XII")) {
+        tingkat = "XII";
+      } else if (trimmed.startsWith("XI")) {
+        tingkat = "XI";
+      } else if (trimmed.startsWith("X")) {
+        tingkat = "X";
+      } else {
+        tingkat = trimmed.split("-")[0] || "X";
+      }
+
+      const res = await fetch("/api/classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ namaKelas: trimmed, tingkat }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal menambahkan kelas");
+      }
+
+      const newCls = await res.json();
+      toast.success(`Kelas ${trimmed} berhasil ditambahkan!`);
+      
+      // Update list and auto select it
+      setClassesList((prev) => [...prev, { id: newCls.id, namaKelas: newCls.namaKelas }]);
+      setSelectedClasses((prev) => [...prev, newCls.namaKelas]);
+      setNewClassName("");
+    } catch (e: any) {
+      toast.error(e.message || "Gagal menambahkan kelas");
+    }
   };
 
   const handleCreate = async () => {
@@ -97,7 +156,7 @@ export default function AdminMapelPage() {
         body: JSON.stringify({
           namaMapel: formName,
           teacherId: formGuru === "none" ? null : formGuru,
-          kelasDiampu: formKelas,
+          kelasDiampu: selectedClasses.join(", "),
         }),
       });
 
@@ -122,7 +181,8 @@ export default function AdminMapelPage() {
     setEditId(mapel.id);
     setFormName(mapel.namaMapel);
     setFormGuru(mapel.teacherId || "none");
-    setFormKelas(mapel.kelasDiampu || "");
+    const classesArray = mapel.kelasDiampu ? mapel.kelasDiampu.split(",").map(k => k.trim()).filter(Boolean) : [];
+    setSelectedClasses(classesArray);
     setEditOpen(true);
   };
 
@@ -139,7 +199,7 @@ export default function AdminMapelPage() {
         body: JSON.stringify({
           namaMapel: formName,
           teacherId: formGuru === "none" ? null : formGuru,
-          kelasDiampu: formKelas,
+          kelasDiampu: selectedClasses.join(", "),
         }),
       });
 
@@ -207,7 +267,15 @@ export default function AdminMapelPage() {
               <div className="space-y-2">
                 <Label htmlFor="guru">Guru Pengampu</Label>
                 <Select value={formGuru} onValueChange={(val) => setFormGuru(val || "")}>
-                  <SelectTrigger id="guru"><SelectValue placeholder="Pilih guru pengampu (opsional)" /></SelectTrigger>
+                  <SelectTrigger id="guru">
+                    <SelectValue placeholder="Pilih guru pengampu (opsional)">
+                      {(value) => {
+                        if (value === "none" || !value) return "Belum ditentukan";
+                        const teacher = teachers.find((t) => t.id === value);
+                        return teacher ? teacher.namaLengkap : "Belum ditentukan";
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Belum ditentukan</SelectItem>
                     {teachers.map((t) => (
@@ -217,9 +285,60 @@ export default function AdminMapelPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="kelas-diampu">Kelas yang Diampu</Label>
-                <Input id="kelas-diampu" placeholder="Contoh: X-A, X-B (pisahkan koma)" value={formKelas} onChange={(e) => setFormKelas(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Pisahkan dengan koma jika lebih dari satu kelas.</p>
+                <Label>Kelas yang Diampu</Label>
+                <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-slate-50/50 max-h-[160px] overflow-y-auto">
+                  {classesList.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">Belum ada data kelas.</span>
+                  ) : (
+                    classesList.map((cls) => {
+                      const isChecked = selectedClasses.includes(cls.namaKelas);
+                      return (
+                        <label
+                          key={cls.id}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs cursor-pointer select-none transition-all",
+                            isChecked
+                              ? "bg-navy-500 border-navy-600 text-white font-medium shadow-sm"
+                              : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            className="sr-only"
+                            onChange={() => {
+                              if (isChecked) {
+                                setSelectedClasses(selectedClasses.filter(c => c !== cls.namaKelas));
+                              } else {
+                                setSelectedClasses([...selectedClasses, cls.namaKelas]);
+                              }
+                            }}
+                          />
+                          {cls.namaKelas}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                
+                {/* Inline Add Class */}
+                <div className="flex items-center gap-2 pt-1">
+                  <Input
+                    placeholder="Nama kelas baru (misal: XII-A)"
+                    value={newClassName}
+                    onChange={(e) => setNewClassName(e.target.value)}
+                    className="h-8 text-xs max-w-[200px]"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs bg-slate-50 hover:bg-slate-100"
+                    onClick={handleAddNewClass}
+                  >
+                    Tambah Kelas
+                  </Button>
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -247,7 +366,15 @@ export default function AdminMapelPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit-guru">Guru Pengampu</Label>
                 <Select value={formGuru} onValueChange={(val) => setFormGuru(val || "")}>
-                  <SelectTrigger id="edit-guru"><SelectValue placeholder="Pilih guru pengampu (opsional)" /></SelectTrigger>
+                  <SelectTrigger id="edit-guru">
+                    <SelectValue placeholder="Pilih guru pengampu (opsional)">
+                      {(value) => {
+                        if (value === "none" || !value) return "Belum ditentukan";
+                        const teacher = teachers.find((t) => t.id === value);
+                        return teacher ? teacher.namaLengkap : "Belum ditentukan";
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Belum ditentukan</SelectItem>
                     {teachers.map((t) => (
@@ -257,8 +384,60 @@ export default function AdminMapelPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-kelas-diampu">Kelas yang Diampu</Label>
-                <Input id="edit-kelas-diampu" placeholder="Contoh: X-A, X-B" value={formKelas} onChange={(e) => setFormKelas(e.target.value)} />
+                <Label>Kelas yang Diampu</Label>
+                <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-slate-50/50 max-h-[160px] overflow-y-auto">
+                  {classesList.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">Belum ada data kelas.</span>
+                  ) : (
+                    classesList.map((cls) => {
+                      const isChecked = selectedClasses.includes(cls.namaKelas);
+                      return (
+                        <label
+                          key={cls.id}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs cursor-pointer select-none transition-all",
+                            isChecked
+                              ? "bg-navy-500 border-navy-600 text-white font-medium shadow-sm"
+                              : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            className="sr-only"
+                            onChange={() => {
+                              if (isChecked) {
+                                setSelectedClasses(selectedClasses.filter(c => c !== cls.namaKelas));
+                              } else {
+                                setSelectedClasses([...selectedClasses, cls.namaKelas]);
+                              }
+                            }}
+                          />
+                          {cls.namaKelas}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                
+                {/* Inline Add Class */}
+                <div className="flex items-center gap-2 pt-1">
+                  <Input
+                    placeholder="Nama kelas baru (misal: XII-A)"
+                    value={newClassName}
+                    onChange={(e) => setNewClassName(e.target.value)}
+                    className="h-8 text-xs max-w-[200px]"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs bg-slate-50 hover:bg-slate-100"
+                    onClick={handleAddNewClass}
+                  >
+                    Tambah Kelas
+                  </Button>
+                </div>
               </div>
             </div>
             <DialogFooter>
