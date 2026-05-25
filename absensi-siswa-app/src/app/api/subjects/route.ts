@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { subjects } from "@/db/schema";
+import { subjects, teachers } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -11,19 +12,18 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await db.select().from(subjects).all();
+  const result = await db.select({
+    id: subjects.id,
+    namaMapel: subjects.namaMapel,
+    teacherId: subjects.teacherId,
+    guruPengampu: teachers.namaLengkap,
+    kelasDiampu: subjects.kelasDiampu
+  })
+    .from(subjects)
+    .leftJoin(teachers, eq(subjects.teacherId, teachers.id))
+    .all();
   
-  // Deduplicate by namaMapel
-  const seen = new Set<string>();
-  const uniqueSubjects = [];
-  for (const item of result) {
-    if (!seen.has(item.namaMapel)) {
-      seen.add(item.namaMapel);
-      uniqueSubjects.push(item);
-    }
-  }
-
-  return NextResponse.json(uniqueSubjects);
+  return NextResponse.json(result);
 }
 
 // POST /api/subjects — create a new subject
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { namaMapel, guruPengampu } = body;
+    const { namaMapel, teacherId, kelasDiampu } = body;
 
     if (!namaMapel) {
       return NextResponse.json({ error: "Nama pelajaran wajib diisi" }, { status: 400 });
@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
       .insert(subjects)
       .values({
         namaMapel,
-        guruPengampu: guruPengampu || null,
+        teacherId: teacherId || null,
+        kelasDiampu: kelasDiampu || null,
       })
       .returning();
 

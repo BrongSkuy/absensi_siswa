@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { students, teachers, attendance, spkScores, spkCriteria, classes, subjects, teacherClasses, teacherSubjects, spkGradingCategories } from "@/db/schema";
+import { students, teachers, attendance, spkScores, spkCriteria, classes, subjects, spkGradingCategories } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import * as XLSX from "xlsx";
@@ -23,8 +23,6 @@ export async function GET() {
     const allAttendance = await db.select().from(attendance);
     const allScores = await db.select().from(spkScores);
     const allCriteria = await db.select().from(spkCriteria);
-    const allTeacherClasses = await db.select().from(teacherClasses);
-    const allTeacherSubjects = await db.select().from(teacherSubjects);
     const allGradingCats = await db.select().from(spkGradingCategories);
 
     const wb = XLSX.utils.book_new();
@@ -36,7 +34,8 @@ export async function GET() {
 
     // Group teacher subjects by teacherId
     const teacherSubjsMap = new Map<string, string[]>();
-    for (const ts of allTeacherSubjects) {
+    for (const ts of allSubjects) {
+      if (!ts.teacherId) continue;
       let subjs = teacherSubjsMap.get(ts.teacherId);
       if (!subjs) {
         subjs = [];
@@ -92,11 +91,15 @@ export async function GET() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kelasData.length > 0 ? kelasData : [{}]), "Data Kelas");
 
     // Sheet 4: Mapel
-    const mapelData = allSubjects.map(s => ({
-      ID: s.id,
-      NamaMapel: s.namaMapel,
-      GuruPengampu: s.guruPengampu || "",
-    }));
+    const mapelData = allSubjects.map(s => {
+      const teacher = s.teacherId ? teacherMap.get(s.teacherId) : null;
+      return {
+        ID: s.id,
+        NamaMapel: s.namaMapel,
+        GuruPengampu: teacher ? teacher.namaLengkap : "",
+        KelasDiampu: s.kelasDiampu || "",
+      };
+    });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mapelData.length > 0 ? mapelData : [{}]), "Data Mapel");
 
     // Sheet 5: Absensi
@@ -155,22 +158,20 @@ export async function GET() {
       }
     }
 
-    // 2) From attendance records: find which classes each teacher's subjects have been used in
+    // 2) From subjects table
     for (const teacher of allTeachers) {
-      const teacherSubjNames = teacherSubjsMap.get(teacher.id) || [];
-      if (teacherSubjNames.length === 0) continue;
-
-      const classesFromAtt = new Set<string>();
-      for (const subjName of teacherSubjNames) {
-        const classesForSubj = mapelClassesMap.get(subjName);
-        if (classesForSubj) {
-          for (const c of classesForSubj) {
-            classesFromAtt.add(c);
-          }
-        }
+      const mySubjects = allSubjects.filter(s => s.teacherId === teacher.id);
+      const classesFromSubjects = new Set<string>();
+      
+      for (const s of mySubjects) {
+         if (s.kelasDiampu) {
+            s.kelasDiampu.split(",").forEach(k => {
+               if (k.trim()) classesFromSubjects.add(k.trim());
+            });
+         }
       }
 
-      for (const kelasName of classesFromAtt) {
+      for (const kelasName of classesFromSubjects) {
         // Avoid duplicate if already added as waliKelas
         const alreadyAdded = guruKelasRows.some(
           r => r.NamaGuru === teacher.namaLengkap && r.Kelas === kelasName
@@ -187,9 +188,9 @@ export async function GET() {
     }
 
     // Sheet 8b: Guru-Mapel
-    const tSubjData = allTeacherSubjects.map(ts => {
-      const teacher = teacherMap.get(ts.teacherId);
-      return { NIP: teacher?.nip || ts.teacherId, NamaGuru: teacher?.namaLengkap || "-", Mapel: ts.namaMapel, Periode: ts.periode };
+    const tSubjData = allSubjects.filter(s => s.teacherId).map(ts => {
+      const teacher = teacherMap.get(ts.teacherId!);
+      return { NIP: teacher?.nip || ts.teacherId, NamaGuru: teacher?.namaLengkap || "-", Mapel: ts.namaMapel, KelasDiampu: ts.kelasDiampu || "-" };
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(guruKelasRows.length > 0 ? guruKelasRows : [{}]), "Guru-Kelas");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(tSubjData.length > 0 ? tSubjData : [{}]), "Guru-Mapel");

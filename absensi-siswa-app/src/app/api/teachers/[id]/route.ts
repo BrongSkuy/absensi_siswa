@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { teachers, teacherSubjects, academicYears } from "@/db/schema";
+import { teachers, academicYears } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -28,6 +28,9 @@ export async function PUT(
       if (body.nip) {
         updatePayload.nip = body.nip;
       }
+      if (body.jenisKelamin) {
+        updatePayload.jenisKelamin = body.jenisKelamin;
+      }
 
       const [updatedTeacher] = await tx
         .update(teachers)
@@ -53,45 +56,7 @@ export async function PUT(
           .run();
       }
 
-      if (body.mataPelajaran) {
-         await tx.delete(teacherSubjects).where(eq(teacherSubjects.teacherId, id));
-         
-         if (Array.isArray(body.mataPelajaran) && body.mataPelajaran.length > 0) {
-            const { subjects } = await import("@/db/schema");
-            for (const mapel of body.mataPelajaran) {
-               await tx.insert(teacherSubjects).values({
-                  teacherId: id,
-                  namaMapel: String(mapel),
-               });
-               
-               // Check if subject exists globally, if not create it
-               const existingSubject = await tx.select().from(subjects).where(eq(subjects.namaMapel, String(mapel)));
-               if (existingSubject.length === 0) {
-                  await tx.insert(subjects).values({
-                     namaMapel: String(mapel),
-                     guruPengampu: body.namaLengkap
-                  });
-               }
-            }
-         }
-      }
 
-      if (body.kelasDiampu) {
-         const { teacherClasses } = await import("@/db/schema");
-         await tx.delete(teacherClasses).where(eq(teacherClasses.teacherId, id));
-         
-         if (Array.isArray(body.kelasDiampu) && body.kelasDiampu.length > 0) {
-            for (const kelasVal of body.kelasDiampu) {
-               const cleanedKelas = String(kelasVal).trim();
-               if (cleanedKelas) {
-                  await tx.insert(teacherClasses).values({
-                     teacherId: id,
-                     kelas: cleanedKelas,
-                  });
-               }
-            }
-         }
-      }
 
       return updatedTeacher;
     });
@@ -127,12 +92,9 @@ export async function DELETE(
       }
       const teacher = teacherList[0];
 
-      // Cleanup teacher subjects
-      await tx.delete(teacherSubjects).where(eq(teacherSubjects.teacherId, id));
-      
-      // Item 13: Cleanup teacher classes
-      const { teacherClasses, classes } = await import("@/db/schema");
-      await tx.delete(teacherClasses).where(eq(teacherClasses.teacherId, id));
+      // Unlink subjects
+      const { subjects, classes } = await import("@/db/schema");
+      await tx.update(subjects).set({ teacherId: null }).where(eq(subjects.teacherId, id));
 
       // Cleanup classes.waliKelas where it matches the teacher's name
       await tx

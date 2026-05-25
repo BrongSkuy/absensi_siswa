@@ -121,58 +121,30 @@ async function seed() {
   }
 
   // ==========================================
-  // 4. Teacher-Class assignments
+  // 4. Subjects & Teacher Assignments
   // ==========================================
-  console.log("\n📋 Assigning teachers to classes...");
+  console.log("\n📚 Creating Subjects & Assignments...");
   const allTeachers = await db.select().from(schema.teachers);
-  const classAssignments = [
-    { nip: "197601012005", kelas: "X-A" },
-    { nip: "197601012005", kelas: "XI-A" },
-    { nip: "198203152008", kelas: "X-B" },
-    { nip: "198203152008", kelas: "XI-A" },
-    { nip: "199005202012", kelas: "X-A" },
-    { nip: "199005202012", kelas: "X-B" },
+  
+  const mapelData = [
+    { namaMapel: "Matematika", nip: "197601012005", kelas: "X-A, XI-A" },
+    { namaMapel: "Fisika", nip: "197601012005", kelas: "X-A, XI-A" },
+    { namaMapel: "Bahasa Indonesia", nip: "198203152008", kelas: "X-B, XI-A" },
+    { namaMapel: "Bahasa Inggris", nip: "198203152008", kelas: "X-B, XI-A" },
+    { namaMapel: "IPA", nip: "199005202012", kelas: "X-A, X-B" },
   ];
 
-  for (const ca of classAssignments) {
-    const teacher = allTeachers.find((t) => t.nip === ca.nip);
-    if (teacher) {
-      try {
-        await db.insert(schema.teacherClasses).values({
-          teacherId: teacher.id,
-          kelas: ca.kelas,
-        });
-        console.log(`   ✅ ${ca.nip} → ${ca.kelas}`);
-      } catch {
-        console.log(`   ⏭️ ${ca.nip} → ${ca.kelas} already exists, skipping...`);
-      }
-    }
-  }
-
-  // ==========================================
-  // 4b. Teacher-Subject assignments
-  // ==========================================
-  console.log("\n📋 Assigning teachers to subjects...");
-  const subjectAssignments = [
-    { nip: "197601012005", mapel: "Matematika" },
-    { nip: "197601012005", mapel: "Fisika" },
-    { nip: "198203152008", mapel: "Bahasa Indonesia" },
-    { nip: "198203152008", mapel: "Bahasa Inggris" },
-    { nip: "199005202012", mapel: "IPA" },
-  ];
-
-  for (const sa of subjectAssignments) {
-    const teacher = allTeachers.find((t) => t.nip === sa.nip);
-    if (teacher) {
-      try {
-        await db.insert(schema.teacherSubjects).values({
-          teacherId: teacher.id,
-          namaMapel: sa.mapel,
-        });
-        console.log(`   ✅ ${sa.nip} → ${sa.mapel}`);
-      } catch {
-        console.log(`   ⏭️ ${sa.nip} → ${sa.mapel} already exists, skipping...`);
-      }
+  for (const m of mapelData) {
+    const teacher = allTeachers.find((t) => t.nip === m.nip);
+    try {
+      await db.insert(schema.subjects).values({
+        namaMapel: m.namaMapel,
+        teacherId: teacher?.id || null,
+        kelasDiampu: m.kelas,
+      });
+      console.log(`   ✅ Mapel: ${m.namaMapel} — ${teacher?.namaLengkap || "Unknown"} (${m.kelas})`);
+    } catch {
+      console.log(`   ⏭️ Mapel ${m.namaMapel} already exists, skipping...`);
     }
   }
 
@@ -235,28 +207,7 @@ async function seed() {
   }
 
   // ==========================================
-  // 6. Subjects
-  // ==========================================
-  console.log("\n📚 Creating Subjects...");
-  const mapelData = [
-    { namaMapel: "Matematika", guruPengampu: "Budi Santoso, S.Pd." },
-    { namaMapel: "Bahasa Indonesia", guruPengampu: "Siti Rahayu, M.Pd." },
-    { namaMapel: "Bahasa Inggris", guruPengampu: "Siti Rahayu, M.Pd." },
-    { namaMapel: "IPA", guruPengampu: "Ahmad Fauzi, S.Pd." },
-    { namaMapel: "Fisika", guruPengampu: "Budi Santoso, S.Pd." },
-  ];
-
-  for (const m of mapelData) {
-    try {
-      await db.insert(schema.subjects).values(m);
-      console.log(`   ✅ Mapel: ${m.namaMapel} — ${m.guruPengampu}`);
-    } catch {
-      console.log(`   ⏭️ Mapel ${m.namaMapel} already exists, skipping...`);
-    }
-  }
-
-  // ==========================================
-  // 7. SPK Criteria
+  // 6. SPK Criteria
   // ==========================================
   console.log("\n⚖️ Creating SPK Criteria...");
   const kriteria = [
@@ -277,7 +228,7 @@ async function seed() {
   }
 
   // ==========================================
-  // 8. Academic Year
+  // 7. Academic Year
   // ==========================================
   console.log("\n📅 Creating Academic Year...");
   try {
@@ -292,7 +243,7 @@ async function seed() {
   }
 
   // ==========================================
-  // 9. Demo Attendance Data (last 2 weeks)
+  // 8. Demo Attendance Data (last 2 weeks)
   // ==========================================
   console.log("\n📊 Creating demo attendance data...");
   if (createdStudentIds.length > 0) {
@@ -331,7 +282,7 @@ async function seed() {
   }
 
   // ==========================================
-  // 10. Demo SPK Scores
+  // 9. Demo SPK Scores
   // ==========================================
   console.log("\n🏆 Creating demo SPK scores...");
   if (createdStudentIds.length > 0) {

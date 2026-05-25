@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { teacherSubjects, teachers } from "@/db/schema";
+import { teachers, subjects as mapelSubjects } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -23,7 +23,7 @@ export async function GET() {
   }
 
   // Check if teacher is waliKelas for any class
-  const { classes, teacherClasses } = await import("@/db/schema");
+  const { classes } = await import("@/db/schema");
   const waliKelasCheck = await db
     .select()
     .from(classes)
@@ -31,22 +31,29 @@ export async function GET() {
 
   const waliClasses = waliKelasCheck.map((c) => c.namaKelas);
 
-  // Get explicitly assigned classes
-  const assignedClassesCheck = await db
-    .selectDistinct({ kelas: teacherClasses.kelas })
-    .from(teacherClasses)
-    .where(eq(teacherClasses.teacherId, teacherProfile.id));
+  // Get explicitly assigned subjects and classes
+  const mySubjects = await db
+    .select({ namaMapel: mapelSubjects.namaMapel, kelas: mapelSubjects.kelasDiampu })
+    .from(mapelSubjects)
+    .where(eq(mapelSubjects.teacherId, teacherProfile.id));
 
-  const assignedClasses = assignedClassesCheck.map((c) => c.kelas);
+  const assignedClasses = new Set<string>();
+  const subjectNames = new Set<string>();
+
+  for (const s of mySubjects) {
+    subjectNames.add(s.namaMapel);
+    if (s.kelas) {
+      s.kelas.split(",").forEach(k => {
+        if (k.trim()) assignedClasses.add(k.trim());
+      });
+    }
+  }
 
   // Combine waliClasses and assignedClasses uniquely
-  const teacherClassNames = Array.from(new Set([...waliClasses, ...assignedClasses]));
+  const teacherClassNames = Array.from(new Set([...waliClasses, ...Array.from(assignedClasses)]));
 
   // Get unique subjects mapped to this teacher
-  const subjects = await db
-    .selectDistinct({ namaMapel: teacherSubjects.namaMapel })
-    .from(teacherSubjects)
-    .where(eq(teacherSubjects.teacherId, teacherProfile.id));
+  const subjects = Array.from(subjectNames).map(namaMapel => ({ namaMapel }));
 
   return NextResponse.json({
     waliClasses,

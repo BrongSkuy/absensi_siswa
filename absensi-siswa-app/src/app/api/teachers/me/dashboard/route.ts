@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { teachers, teacherClasses, classes, attendance, students, teacherSubjects, academicYears } from "@/db/schema";
+import { teachers, classes, attendance, students, subjects, academicYears } from "@/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -36,22 +36,24 @@ export async function GET() {
     let teacherSubjectNames: string[] = [];
 
     if (teacher) {
-      // 1. Get subjects taught by teacher
+      // 1. Get subjects & classes explicitly assigned to teacher
       const mySubjects = await db
-        .select({ mapel: teacherSubjects.namaMapel })
-        .from(teacherSubjects)
-        .where(eq(teacherSubjects.teacherId, teacher.id))
-        .all();
-      teacherSubjectNames = mySubjects.map(s => s.mapel);
-
-      // 2. Get classes explicitly assigned to teacher via teacherClasses
-      const myAssignedClasses = await db
-        .select({ classId: teacherClasses.kelas }) 
-        .from(teacherClasses)
-        .where(eq(teacherClasses.teacherId, teacher.id))
+        .select({ mapel: subjects.namaMapel, kelas: subjects.kelasDiampu })
+        .from(subjects)
+        .where(eq(subjects.teacherId, teacher.id))
         .all();
       
-      const assignedKelasNames = myAssignedClasses.map(ac => ac.classId);
+      teacherSubjectNames = mySubjects.map(s => s.mapel);
+
+      const assignedKelasNamesSet = new Set<string>();
+      for (const s of mySubjects) {
+         if (s.kelas) {
+            s.kelas.split(",").forEach(k => {
+               if (k.trim()) assignedKelasNamesSet.add(k.trim());
+            });
+         }
+      }
+      const assignedKelasNames = Array.from(assignedKelasNamesSet);
 
       // 3. Get classes where teacher is Wali Kelas
       const myWaliClasses = await db

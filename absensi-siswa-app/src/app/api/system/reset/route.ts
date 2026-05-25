@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { students, teachers, attendance, spkScores, teacherClasses, teacherSubjects, spkGradingCategories, classes, subjects, spkResults, spkPublishStatus } from "@/db/schema";
+import { students, teachers, attendance, spkScores, spkGradingCategories, classes, subjects, spkResults, spkPublishStatus } from "@/db/schema";
 import { user } from "@/db/auth-schema";
 import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -21,8 +21,6 @@ export async function POST() {
       await tx.delete(spkGradingCategories);
       await tx.delete(spkScores);
       await tx.delete(attendance);
-      await tx.delete(teacherSubjects);
-      await tx.delete(teacherClasses);
       await tx.delete(students);
       await tx.delete(teachers);
       await tx.delete(subjects);

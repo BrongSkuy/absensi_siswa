@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { teachers, teacherSubjects, teacherClasses } from "@/db/schema";
+import { teachers } from "@/db/schema";
 import { like, or, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -33,20 +33,7 @@ export async function GET(request: NextRequest) {
 
   const result = await query.all();
 
-  const allSubjects = await db.select().from(teacherSubjects).all();
-  const allClasses = await db.select().from(teacherClasses).all();
-
-  const formattedResult = result.map((t) => {
-    const tSubjects = Array.from(new Set(allSubjects.filter((s) => s.teacherId === t.id).map(s => s.namaMapel)));
-    const tClasses = allClasses.filter((c) => c.teacherId === t.id).map(c => c.kelas);
-    return {
-      ...t,
-      mataPelajaran: tSubjects,
-      kelasDiampu: tClasses
-    };
-  });
-
-  return NextResponse.json(formattedResult);
+  return NextResponse.json(result);
 }
 
 // POST /api/teachers — create a new teacher
@@ -58,7 +45,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { nip, namaLengkap, mataPelajaran, kelasDiampu } = body;
+    const { nip, namaLengkap, jenisKelamin } = body;
 
     if (!nip || !namaLengkap) {
       return NextResponse.json({ error: "NIP dan nama wajib diisi" }, { status: 400 });
@@ -87,41 +74,12 @@ export async function POST(request: NextRequest) {
         userId: newUser.user.id,
         nip,
         namaLengkap,
+        jenisKelamin: jenisKelamin || "L",
         status: "aktif",
       })
       .returning();
 
-    if (mataPelajaran && Array.isArray(mataPelajaran) && mataPelajaran.length > 0) {
-      const { subjects } = await import("@/db/schema");
 
-      for (const mapel of mataPelajaran) {
-        await db.insert(teacherSubjects).values({
-          teacherId: teacher.id,
-          namaMapel: String(mapel),
-        });
-
-        // Auto-create in subjects master table if missing
-        const existingSubject = await db.select().from(subjects).where(eq(subjects.namaMapel, String(mapel)));
-        if (existingSubject.length === 0) {
-           await db.insert(subjects).values({
-             namaMapel: String(mapel),
-             guruPengampu: teacher.namaLengkap
-           });
-        }
-      }
-    }
-
-    if (kelasDiampu && Array.isArray(kelasDiampu) && kelasDiampu.length > 0) {
-      for (const kelasVal of kelasDiampu) {
-        const cleanedKelas = String(kelasVal).trim();
-        if (cleanedKelas) {
-          await db.insert(teacherClasses).values({
-            teacherId: teacher.id,
-            kelas: cleanedKelas,
-          });
-        }
-      }
-    }
 
     return NextResponse.json(teacher, { status: 201 });
   } catch (error: unknown) {

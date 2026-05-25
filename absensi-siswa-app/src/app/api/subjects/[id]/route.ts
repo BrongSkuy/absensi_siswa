@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { subjects, attendance, spkScores, teacherSubjects } from "@/db/schema";
+import { subjects, attendance, spkScores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -23,7 +23,8 @@ export async function PUT(
       .update(subjects)
       .set({
         namaMapel: body.namaMapel,
-        guruPengampu: body.guruPengampu || null,
+        teacherId: body.teacherId || null,
+        kelasDiampu: body.kelasDiampu || null,
       })
       .where(eq(subjects.id, id))
       .returning();
@@ -78,17 +79,9 @@ export async function DELETE(
       .limit(1)
       .all();
 
-    // Check references in teacherSubjects table
-    const teacherRefs = await db
-      .select()
-      .from(teacherSubjects)
-      .where(eq(teacherSubjects.namaMapel, targetSubject.namaMapel))
-      .limit(1)
-      .all();
-
-    if (attendanceRefs.length > 0 || scoreRefs.length > 0 || teacherRefs.length > 0) {
+    if (attendanceRefs.length > 0 || scoreRefs.length > 0) {
       return NextResponse.json({
-        error: "Tidak dapat menghapus mata pelajaran karena memiliki data absensi, nilai, atau penugasan aktif"
+        error: "Tidak dapat menghapus mata pelajaran karena memiliki data absensi atau nilai aktif"
       }, { status: 400 });
     }
 

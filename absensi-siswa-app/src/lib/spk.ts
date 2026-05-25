@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { spkScores, students, spkCriteria, attendance, academicYears, teacherClasses, teacherSubjects, classes as classesTable, subjects, spkGradingCategories } from "@/db/schema";
+import { spkScores, students, spkCriteria, attendance, academicYears, classes as classesTable, subjects, spkGradingCategories } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { DEFAULT_PERIODE } from "@/lib/utils";
 

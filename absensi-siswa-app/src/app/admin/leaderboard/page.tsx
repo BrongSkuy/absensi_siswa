@@ -78,7 +78,6 @@ export default function AdminLeaderboardPage() {
     publishedAt: string | null;
     publishedBy: string | null;
   } | null>(null);
-  const [bypassValidation, setBypassValidation] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [showMissingDialog, setShowMissingDialog] = useState(false);
 
@@ -125,8 +124,7 @@ export default function AdminLeaderboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          periode: publishStatus.periode,
-          bypassValidation
+          periode: publishStatus.periode
         })
       });
       const res = await r.json();
@@ -309,27 +307,11 @@ export default function AdminLeaderboardPage() {
                   </AlertDialog>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    {/* Bypass Option if has missing */}
-                    {hasMissing && (
-                      <label className="flex items-center gap-2 cursor-pointer bg-amber-50 border border-amber-100 hover:bg-amber-100/50 p-2.5 rounded-lg transition-colors select-none">
-                        <input
-                          type="checkbox"
-                          checked={bypassValidation}
-                          onChange={(e) => setBypassValidation(e.target.checked)}
-                          className="rounded text-amber-600 focus:ring-amber-500 border-amber-300 w-4 h-4 cursor-pointer"
-                        />
-                        <div className="text-left">
-                          <p className="text-xs font-semibold text-amber-900">Bypass Validasi</p>
-                          <p className="text-[10px] text-amber-700 leading-none">Rilis seadanya di akhir semester</p>
-                        </div>
-                      </label>
-                    )}
-
                     <AlertDialog>
                       <AlertDialogTrigger render={
                         <Button 
                           className="bg-gradient-to-r from-navy-600 to-indigo-600 hover:from-navy-700 hover:to-indigo-700 text-white font-semibold shadow-sm transition-all"
-                          disabled={hasMissing && !bypassValidation}
+                          disabled={hasMissing}
                         >
                           <Unlock className="mr-2 h-4 w-4" /> Publikasikan Leaderboard
                         </Button>
@@ -342,17 +324,7 @@ export default function AdminLeaderboardPage() {
                           </AlertDialogTitle>
                           <AlertDialogDescription className="text-slate-500 leading-relaxed text-sm">
                             Tindakan ini akan mengunci kalkulasi SPK SAW saat ini dan menyimpannya sebagai hasil resmi untuk periode <strong className="text-slate-800">{publishStatus.periode}</strong>. 
-                            {bypassValidation ? (
-                              <div className="mt-2.5 p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-800 flex gap-2">
-                                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                                <div>
-                                  <span className="font-semibold block text-xs">Peringatan Bypass:</span>
-                                  <span className="text-[11px] leading-tight block">Anda memilih bypass validasi. Beberapa siswa memiliki penilaian kosong, dan leaderboard akan dirilis dengan data apa adanya.</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="block mt-2 font-medium text-emerald-600">Semua data kriteria telah divalidasi 100% lengkap untuk seluruh siswa.</span>
-                            )}
+                            <span className="block mt-2 font-medium text-emerald-600">Semua data kriteria telah divalidasi 100% lengkap untuk seluruh siswa.</span>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -399,7 +371,7 @@ export default function AdminLeaderboardPage() {
                         Daftar Penilaian Kosong (SPK SAW)
                       </AlertDialogTitle>
                       <AlertDialogDescription className="text-slate-500 text-xs">
-                        Item penilaian berikut belum diinput oleh guru untuk semester aktif ({publishStatus.periode}). Semua item ini harus dilengkapi, atau gunakan opsi &quot;Bypass Validasi&quot; untuk memaksa publikasi.
+                        Item penilaian berikut belum diinput oleh guru untuk semester aktif ({publishStatus.periode}). Semua item ini harus dilengkapi sebelum peringkat semester dapat dipublikasikan.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
 

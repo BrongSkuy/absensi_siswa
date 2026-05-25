@@ -25,28 +25,10 @@ export const teachers = sqliteTable("teachers", {
   userId: text("user_id").notNull(), // FK to Better Auth 'user' table
   nip: text("nip").notNull().unique(),
   namaLengkap: text("nama_lengkap").notNull(),
+  jenisKelamin: text("jenis_kelamin", { enum: ["L", "P"] }).notNull().default("L"),
   status: text("status", { enum: ["aktif", "nonaktif"] }).notNull().default("aktif"),
 }, (table) => [
   index("teachers_user_idx").on(table.userId),
-]);
-
-// --- Teacher-Class assignments (guru → kelas yang diampu) ---
-export const teacherClasses = sqliteTable("teacher_classes", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  teacherId: text("teacher_id").notNull(),
-  kelas: text("kelas").notNull(),
-}, (table) => [
-  index("teacher_classes_teacher_idx").on(table.teacherId),
-]);
-
-// --- Teacher-Subject assignments (guru → mapel yang diampu) ---
-export const teacherSubjects = sqliteTable("teacher_subjects", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  teacherId: text("teacher_id").notNull(),
-  namaMapel: text("nama_mapel").notNull(),
-  periode: text("periode").notNull().default("2024/2025-Genap"), // Isolation tag
-}, (table) => [
-  index("teacher_subjects_teacher_idx").on(table.teacherId),
 ]);
 
 // --- Kelas (daftar kelas) ---
@@ -61,7 +43,8 @@ export const classes = sqliteTable("classes", {
 export const subjects = sqliteTable("subjects", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   namaMapel: text("nama_mapel").notNull(),
-  guruPengampu: text("guru_pengampu"),
+  teacherId: text("teacher_id"),
+  kelasDiampu: text("kelas_diampu"),
 });
 
 // --- Attendance (absensi harian) ---

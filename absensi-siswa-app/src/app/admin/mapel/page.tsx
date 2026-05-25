@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -22,7 +23,9 @@ import {
 interface SubjectRow {
   id: string;
   namaMapel: string;
+  teacherId: string | null;
   guruPengampu: string | null;
+  kelasDiampu: string | null;
 }
 
 interface TeacherRow {
@@ -44,6 +47,7 @@ export default function AdminMapelPage() {
   // Form State
   const [formName, setFormName] = useState("");
   const [formGuru, setFormGuru] = useState("");
+  const [formKelas, setFormKelas] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -69,12 +73,14 @@ export default function AdminMapelPage() {
   const filtered = subjects.filter(
     (m) =>
       m.namaMapel.toLowerCase().includes(search.toLowerCase()) ||
-      (m.guruPengampu || "").toLowerCase().includes(search.toLowerCase())
+      (m.guruPengampu || "").toLowerCase().includes(search.toLowerCase()) ||
+      (m.kelasDiampu || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const resetForm = () => {
     setFormName("");
     setFormGuru("none");
+    setFormKelas("");
     setEditId(null);
   };
 
@@ -90,7 +96,8 @@ export default function AdminMapelPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           namaMapel: formName,
-          guruPengampu: formGuru === "none" ? null : formGuru,
+          teacherId: formGuru === "none" ? null : formGuru,
+          kelasDiampu: formKelas,
         }),
       });
 
@@ -114,7 +121,8 @@ export default function AdminMapelPage() {
   const openEdit = (mapel: SubjectRow) => {
     setEditId(mapel.id);
     setFormName(mapel.namaMapel);
-    setFormGuru(mapel.guruPengampu || "none");
+    setFormGuru(mapel.teacherId || "none");
+    setFormKelas(mapel.kelasDiampu || "");
     setEditOpen(true);
   };
 
@@ -130,7 +138,8 @@ export default function AdminMapelPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           namaMapel: formName,
-          guruPengampu: formGuru === "none" ? null : formGuru,
+          teacherId: formGuru === "none" ? null : formGuru,
+          kelasDiampu: formKelas,
         }),
       });
 
@@ -198,14 +207,19 @@ export default function AdminMapelPage() {
               <div className="space-y-2">
                 <Label htmlFor="guru">Guru Pengampu</Label>
                 <Select value={formGuru} onValueChange={(val) => setFormGuru(val || "")}>
-                  <SelectTrigger id="guru"><SelectValue placeholder="Pilih guru pangampu (opsional)" /></SelectTrigger>
+                  <SelectTrigger id="guru"><SelectValue placeholder="Pilih guru pengampu (opsional)" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Belum ditentukan</SelectItem>
                     {teachers.map((t) => (
-                      <SelectItem key={t.id} value={t.namaLengkap}>{t.namaLengkap}</SelectItem>
+                      <SelectItem key={t.id} value={t.id}>{t.namaLengkap}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="kelas-diampu">Kelas yang Diampu</Label>
+                <Input id="kelas-diampu" placeholder="Contoh: X-A, X-B (pisahkan koma)" value={formKelas} onChange={(e) => setFormKelas(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Pisahkan dengan koma jika lebih dari satu kelas.</p>
               </div>
             </div>
             <DialogFooter>
@@ -237,10 +251,14 @@ export default function AdminMapelPage() {
                   <SelectContent>
                     <SelectItem value="none">Belum ditentukan</SelectItem>
                     {teachers.map((t) => (
-                      <SelectItem key={t.id} value={t.namaLengkap}>{t.namaLengkap}</SelectItem>
+                      <SelectItem key={t.id} value={t.id}>{t.namaLengkap}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-kelas-diampu">Kelas yang Diampu</Label>
+                <Input id="edit-kelas-diampu" placeholder="Contoh: X-A, X-B" value={formKelas} onChange={(e) => setFormKelas(e.target.value)} />
               </div>
             </div>
             <DialogFooter>
@@ -271,13 +289,14 @@ export default function AdminMapelPage() {
                 <TableHead className="w-12 pl-6">No</TableHead>
                 <TableHead>Nama Mata Pelajaran</TableHead>
                 <TableHead>Guru Pengampu</TableHead>
+                <TableHead>Kelas Diampu</TableHead>
                 <TableHead className="text-right pr-6">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                     Tidak ada data mata pelajaran yang ditemukan.
                   </TableCell>
                 </TableRow>
@@ -287,6 +306,15 @@ export default function AdminMapelPage() {
                     <TableCell className="pl-6 text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="font-medium text-navy-900">{mapel.namaMapel}</TableCell>
                     <TableCell>{mapel.guruPengampu || "-"}</TableCell>
+                    <TableCell>
+                       <div className="flex flex-wrap gap-1">
+                          {mapel.kelasDiampu ? mapel.kelasDiampu.split(",").map(k => {
+                             const trimmed = k.trim();
+                             if (!trimmed) return null;
+                             return <Badge key={trimmed} variant="outline" className="text-xs border-navy-300 text-navy-700 bg-navy-50/50">{trimmed}</Badge>
+                          }) : <span className="text-xs text-muted-foreground">-</span>}
+                       </div>
+                    </TableCell>
                     <TableCell className="text-right pr-6">
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-navy-500 hover:bg-navy-50" aria-label={`Edit ${mapel.namaMapel}`} onClick={() => openEdit(mapel)}>

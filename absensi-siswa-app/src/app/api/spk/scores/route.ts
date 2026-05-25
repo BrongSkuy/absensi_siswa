@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { spkScores, students, spkCriteria, academicYears, spkGradingCategories, teachers, teacherClasses, teacherSubjects, spkPublishStatus } from "@/db/schema";
+import { spkScores, students, spkCriteria, academicYears, spkGradingCategories, teachers, subjects, classes, spkPublishStatus } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -142,21 +142,28 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Data guru tidak ditemukan" }, { status: 404 });
       }
 
-      // Check Class Assignment
-      const [classAssignment] = await db.select().from(teacherClasses).where(
-        and(eq(teacherClasses.teacherId, teacherRecord.id), eq(teacherClasses.kelas, body.kelas))
-      );
-      if (!classAssignment) {
-        return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mengajar di kelas ini." }, { status: 403 });
-      }
-
-      // Check Subject Assignment
+      // Check Subject and Class Assignment
       if (mapel !== "Umum") {
-        const [subjectAssignment] = await db.select().from(teacherSubjects).where(
-          and(eq(teacherSubjects.teacherId, teacherRecord.id), eq(teacherSubjects.namaMapel, mapel))
+        const [subjectAssignment] = await db.select().from(subjects).where(
+          and(eq(subjects.teacherId, teacherRecord.id), eq(subjects.namaMapel, mapel))
         );
         if (!subjectAssignment) {
           return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mata pelajaran ini." }, { status: 403 });
+        }
+        const assignedClasses = subjectAssignment.kelasDiampu ? subjectAssignment.kelasDiampu.split(",").map(k => k.trim()) : [];
+        if (!assignedClasses.includes(body.kelas)) {
+          return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mengajar mata pelajaran ini di kelas tersebut." }, { status: 403 });
+        }
+      } else {
+        // "Umum" check: must be Wali Kelas or teach ANY subject in this class
+        const [kelasRecord] = await db.select().from(classes).where(eq(classes.namaKelas, body.kelas));
+        const isWaliKelas = kelasRecord?.waliKelas === teacherRecord.namaLengkap;
+        
+        const mySubjects = await db.select().from(subjects).where(eq(subjects.teacherId, teacherRecord.id)).all();
+        const teachesAnySubjectInClass = mySubjects.some(ts => ts.kelasDiampu && ts.kelasDiampu.split(",").map(k => k.trim()).includes(body.kelas));
+        
+        if (!isWaliKelas && !teachesAnySubjectInClass) {
+          return NextResponse.json({ error: "Akses Ditolak: Anda tidak memiliki akses ke kelas ini." }, { status: 403 });
         }
       }
     }
@@ -272,21 +279,28 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Data guru tidak ditemukan" }, { status: 404 });
     }
 
-    // Check Class Assignment
-    const [classAssignment] = await db.select().from(teacherClasses).where(
-      and(eq(teacherClasses.teacherId, teacherRecord.id), eq(teacherClasses.kelas, kelas))
-    );
-    if (!classAssignment) {
-      return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mengajar di kelas ini." }, { status: 403 });
-    }
-
-    // Check Subject Assignment
+    // Check Subject and Class Assignment
     if (mapel) {
-      const [subjectAssignment] = await db.select().from(teacherSubjects).where(
-        and(eq(teacherSubjects.teacherId, teacherRecord.id), eq(teacherSubjects.namaMapel, mapel))
+      const [subjectAssignment] = await db.select().from(subjects).where(
+        and(eq(subjects.teacherId, teacherRecord.id), eq(subjects.namaMapel, mapel))
       );
       if (!subjectAssignment) {
         return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mata pelajaran ini." }, { status: 403 });
+      }
+      const assignedClasses = subjectAssignment.kelasDiampu ? subjectAssignment.kelasDiampu.split(",").map(k => k.trim()) : [];
+      if (!assignedClasses.includes(kelas)) {
+        return NextResponse.json({ error: "Akses Ditolak: Anda tidak ditugaskan untuk mengajar mata pelajaran ini di kelas tersebut." }, { status: 403 });
+      }
+    } else {
+      // "Umum" check: must be Wali Kelas or teach ANY subject in this class
+      const [kelasRecord] = await db.select().from(classes).where(eq(classes.namaKelas, kelas));
+      const isWaliKelas = kelasRecord?.waliKelas === teacherRecord.namaLengkap;
+      
+      const mySubjects = await db.select().from(subjects).where(eq(subjects.teacherId, teacherRecord.id)).all();
+      const teachesAnySubjectInClass = mySubjects.some(ts => ts.kelasDiampu && ts.kelasDiampu.split(",").map(k => k.trim()).includes(kelas));
+      
+      if (!isWaliKelas && !teachesAnySubjectInClass) {
+        return NextResponse.json({ error: "Akses Ditolak: Anda tidak memiliki akses ke kelas ini." }, { status: 403 });
       }
     }
   }

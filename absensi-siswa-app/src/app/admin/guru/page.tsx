@@ -24,8 +24,7 @@ interface TeacherRow {
   id: string;
   nip: string;
   namaLengkap: string;
-  mataPelajaran?: string[];
-  kelasDiampu?: string[];
+  jenisKelamin: "L" | "P";
   status: "aktif" | "nonaktif";
 }
 
@@ -41,8 +40,7 @@ export default function AdminGuruPage() {
   // Form State
   const [formNip, setFormNip] = useState("");
   const [formNama, setFormNama] = useState("");
-  const [formMapel, setFormMapel] = useState("");
-  const [formKelas, setFormKelas] = useState("");
+  const [formJK, setFormJK] = useState("L");
   const [formStatus, setFormStatus] = useState("aktif");
 
   const fetchData = useCallback(async () => {
@@ -70,8 +68,7 @@ export default function AdminGuruPage() {
   const resetForm = () => {
     setFormNip("");
     setFormNama("");
-    setFormMapel("");
-    setFormKelas("");
+    setFormJK("L");
     setFormStatus("aktif");
     setEditId(null);
   };
@@ -83,17 +80,13 @@ export default function AdminGuruPage() {
     }
     setSaving(true);
     try {
-      const payloadMapel = formMapel.split(",").map(m => m.trim()).filter(Boolean);
-      const payloadKelas = formKelas.split(",").map(k => k.trim()).filter(Boolean);
-
       const res = await fetch("/api/teachers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
            nip: formNip, 
            namaLengkap: formNama,
-           mataPelajaran: payloadMapel,
-           kelasDiampu: payloadKelas
+           jenisKelamin: formJK
         }),
       });
 
@@ -118,8 +111,7 @@ export default function AdminGuruPage() {
     setEditId(guru.id);
     setFormNip(guru.nip);
     setFormNama(guru.namaLengkap);
-    setFormMapel(guru.mataPelajaran ? guru.mataPelajaran.join(", ") : "");
-    setFormKelas(guru.kelasDiampu ? guru.kelasDiampu.join(", ") : "");
+    setFormJK(guru.jenisKelamin || "L");
     setFormStatus(guru.status);
     setEditOpen(true);
   };
@@ -131,17 +123,13 @@ export default function AdminGuruPage() {
     }
     setSaving(true);
     try {
-      const payloadMapel = formMapel.split(",").map(m => m.trim()).filter(Boolean);
-      const payloadKelas = formKelas.split(",").map(k => k.trim()).filter(Boolean);
-      
       const res = await fetch(`/api/teachers/${editId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nip: formNip,
           namaLengkap: formNama,
-          mataPelajaran: payloadMapel,
-          kelasDiampu: payloadKelas,
+          jenisKelamin: formJK,
           status: formStatus,
         }),
       });
@@ -212,14 +200,16 @@ export default function AdminGuruPage() {
                 <Input id="nama-guru" placeholder="Masukkan nama lengkap" value={formNama} onChange={(e) => setFormNama(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="mapel">Mata Pelajaran yang Diampu</Label>
-                <Input id="mapel" placeholder="Contoh: Matematika, Fisika (pisahkan koma)" value={formMapel} onChange={(e) => setFormMapel(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Pisahkan dengan koma jika lebih dari satu mapel.</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="kelas-diampu">Kelas yang Diampu</Label>
-                <Input id="kelas-diampu" placeholder="Contoh: X-A, X-B (pisahkan koma)" value={formKelas} onChange={(e) => setFormKelas(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Pisahkan dengan koma jika lebih dari satu kelas.</p>
+                <Label htmlFor="jenis-kelamin">Jenis Kelamin</Label>
+                <Select value={formJK} onValueChange={(val) => setFormJK(val || "L")}>
+                  <SelectTrigger id="jenis-kelamin">
+                    <SelectValue placeholder="Pilih jenis kelamin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="L">Laki-laki</SelectItem>
+                    <SelectItem value="P">Perempuan</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <DialogFooter>
@@ -250,12 +240,16 @@ export default function AdminGuruPage() {
                 <Input id="edit-nama-guru" placeholder="Masukkan nama lengkap" value={formNama} onChange={(e) => setFormNama(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-mapel">Mata Pelajaran yang Diampu</Label>
-                <Input id="edit-mapel" placeholder="Contoh: Matematika, Fisika" value={formMapel} onChange={(e) => setFormMapel(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-kelas-diampu">Kelas yang Diampu</Label>
-                <Input id="edit-kelas-diampu" placeholder="Contoh: X-A, X-B" value={formKelas} onChange={(e) => setFormKelas(e.target.value)} />
+                <Label htmlFor="edit-jenis-kelamin">Jenis Kelamin</Label>
+                <Select value={formJK} onValueChange={(val) => setFormJK(val || "L")}>
+                  <SelectTrigger id="edit-jenis-kelamin">
+                    <SelectValue placeholder="Pilih jenis kelamin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="L">Laki-laki</SelectItem>
+                    <SelectItem value="P">Perempuan</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-status">Status</Label>
@@ -298,8 +292,7 @@ export default function AdminGuruPage() {
                 <TableHead className="w-12 pl-6">No</TableHead>
                 <TableHead>NIP</TableHead>
                 <TableHead>Nama Lengkap</TableHead>
-                <TableHead>Mapel Diampu</TableHead>
-                <TableHead>Kelas Diampu</TableHead>
+                <TableHead>Jenis Kelamin</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right pr-6">Aksi</TableHead>
               </TableRow>
@@ -307,7 +300,7 @@ export default function AdminGuruPage() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                     Tidak ada data guru yang ditemukan
                   </TableCell>
                 </TableRow>
@@ -317,20 +310,7 @@ export default function AdminGuruPage() {
                     <TableCell className="pl-6 text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="font-mono text-sm">{guru.nip}</TableCell>
                     <TableCell className="font-medium">{guru.namaLengkap}</TableCell>
-                    <TableCell>
-                       <div className="flex flex-wrap gap-1">
-                          {guru.mataPelajaran && guru.mataPelajaran.length > 0 ? guru.mataPelajaran.map(m => (
-                             <Badge key={m} variant="secondary" className="text-xs">{m}</Badge>
-                          )) : <span className="text-xs text-muted-foreground">-</span>}
-                       </div>
-                    </TableCell>
-                    <TableCell>
-                       <div className="flex flex-wrap gap-1">
-                          {guru.kelasDiampu && guru.kelasDiampu.length > 0 ? guru.kelasDiampu.map(k => (
-                             <Badge key={k} variant="outline" className="text-xs border-navy-300 text-navy-700 bg-navy-50/50">{k}</Badge>
-                          )) : <span className="text-xs text-muted-foreground">-</span>}
-                       </div>
-                    </TableCell>
+                    <TableCell>{guru.jenisKelamin === "L" ? "Laki-laki" : "Perempuan"}</TableCell>
                     <TableCell>
                       <Badge className={guru.status === "aktif" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}>
                         {guru.status === "aktif" ? "Aktif" : "Nonaktif"}
