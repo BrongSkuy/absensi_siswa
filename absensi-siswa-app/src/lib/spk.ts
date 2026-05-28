@@ -270,7 +270,15 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
   }> = [];
 
   for (const cName of classNames) {
-    const requiredMapels = new Set<string>(curriculumMapels);
+    const requiredMapels = new Set<string>();
+    for (const s of subjectsList) {
+      if (s.kelasDiampu) {
+        const classes = s.kelasDiampu.split(",").map(k => k.trim());
+        if (classes.includes(cName)) {
+          requiredMapels.add(s.namaMapel);
+        }
+      }
+    }
     
     // Add "Umum" if class has Wali Kelas
     const classInfo = classMeta.find(c => c.namaKelas === cName);
