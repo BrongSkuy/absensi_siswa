@@ -208,11 +208,17 @@ export default function AdminNilaiSayaPage() {
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {`${s.nis} - ${s.namaLengkap}`}
+                  {students.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      Tidak ada siswa di kelas ini
                     </SelectItem>
-                  ))}
+                  ) : (
+                    students.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {`${s.nis} - ${s.namaLengkap}`}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
