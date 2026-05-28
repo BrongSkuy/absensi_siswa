@@ -89,24 +89,6 @@ export default function AdminNilaiPage() {
     }
   }, [selectedKelas, selectedMapel, subjects]);
 
-  // Synchronize selectedCriteria with selectedMapel (non-academic criteria for "Umum", academic criteria for real subjects)
-  useEffect(() => {
-    if (criteria.length === 0) return;
-    const isAkaMapel = selectedMapel !== "Umum";
-    const currentIsAka = criteria.find(c => c.id === selectedCriteria)?.namaKriteria.toLowerCase().includes("akademik");
-
-    if (isAkaMapel !== currentIsAka) {
-      const compatibleCrit = criteria.find(c => {
-        const isAkaCrit = c.namaKriteria.toLowerCase().includes("akademik");
-        return isAkaCrit === isAkaMapel;
-      });
-      if (compatibleCrit) {
-        setSelectedCriteria(compatibleCrit.id);
-        setShowGrid(false);
-      }
-    }
-  }, [selectedMapel, selectedCriteria, criteria]);
-
   const handleLoad = useCallback(async () => {
     if (!selectedKelas || !selectedCriteria) return;
     setLoading(true);
@@ -282,17 +264,11 @@ export default function AdminNilaiPage() {
                   </span>
                 </SelectTrigger>
                 <SelectContent className="max-w-[100vw] xl:max-w-2xl">
-                  {criteria
-                    .filter((c) => {
-                      const isAkaCrit = c.namaKriteria.toLowerCase().includes("akademik");
-                      const isAkaMapel = selectedMapel !== "Umum";
-                      return isAkaCrit === isAkaMapel;
-                    })
-                    .map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                         {c.namaKriteria} (Bobot: {c.bobot}%)
-                      </SelectItem>
-                    ))}
+                  {criteria.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                       {c.namaKriteria} (Bobot: {c.bobot}%)
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
