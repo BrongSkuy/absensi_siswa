@@ -327,9 +327,6 @@ export async function validateSPKCriteriaFilled(kelas: string, targetPeriode?: s
         // Skip academic criteria check for general homeroom (Umum)
         if (isAcademic && mapel === "Umum") continue;
 
-        // Skip non-academic criteria check for specific academic subjects
-        if (!isAcademic && mapel !== "Umum") continue;
-
         let categoriesRequired: string[] = [];
         if (isAcademic) {
           categoriesRequired = gradingCategoriesMap.get(`${cName}:${c.id}:${mapel}`) || [];
