@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface KelasRow { id: string; namaKelas: string; }
-interface MapelRow { namaMapel: string; }
+interface MapelRow { namaMapel: string; kelasDiampu?: string | null; }
 interface CriteriaRow { id: string; namaKriteria: string; bobot: number; tipe: string; deskripsi: string; }
 interface ScoreStudent { studentId: string; nis: string; namaLengkap: string; nilai: number; details: Record<string, number>; scoreId: string | null; }
 
@@ -71,6 +71,23 @@ export default function AdminNilaiPage() {
       }
     }).catch(() => toast.error("Gagal memuat preferensi guru"));
   }, []);
+
+  // Reset selectedMapel if it's not valid for the selected class
+  useEffect(() => {
+    if (!selectedKelas || subjects.length === 0) return;
+    const validSubjects = subjects.filter(s => {
+      if (!s.kelasDiampu) return false;
+      return s.kelasDiampu.split(",").map(k => k.trim()).includes(selectedKelas);
+    });
+    const isValid = selectedMapel === "Umum" || validSubjects.some(s => s.namaMapel === selectedMapel);
+    if (!isValid) {
+      if (validSubjects.length > 0) {
+        setSelectedMapel(validSubjects[0].namaMapel);
+      } else {
+        setSelectedMapel("Umum");
+      }
+    }
+  }, [selectedKelas, selectedMapel, subjects]);
 
   const handleLoad = useCallback(async () => {
     if (!selectedKelas || !selectedCriteria) return;
@@ -224,9 +241,14 @@ export default function AdminNilaiPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Umum">Umum / Semua Mapel</SelectItem>
-                  {subjects.map((s, i) => (
-                    <SelectItem key={i} value={s.namaMapel}>{s.namaMapel}</SelectItem>
-                  ))}
+                  {subjects
+                    .filter((s) => {
+                      if (!s.kelasDiampu) return false;
+                      return s.kelasDiampu.split(",").map((k) => k.trim()).includes(selectedKelas);
+                    })
+                    .map((s, i) => (
+                      <SelectItem key={i} value={s.namaMapel}>{s.namaMapel}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

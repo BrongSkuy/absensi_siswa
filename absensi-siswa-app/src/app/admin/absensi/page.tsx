@@ -32,6 +32,7 @@ interface KelasRow {
 
 interface SubjectData {
   namaMapel: string;
+  kelasDiampu?: string | null;
 }
 
 interface AttendanceStudent {
@@ -94,6 +95,19 @@ export default function AdminAbsensiPage() {
       }
     }).catch(() => toast.error("Gagal memuat data awal"));
   }, []);
+
+  // Reset selectedMapel if it's not valid for the selected class
+  useEffect(() => {
+    if (!selectedKelas || subjects.length === 0) return;
+    const validSubjects = subjects.filter(s => {
+      if (!s.kelasDiampu) return false;
+      return s.kelasDiampu.split(",").map(k => k.trim()).includes(selectedKelas);
+    });
+    const isValid = selectedMapel === "Umum" || validSubjects.some(s => s.namaMapel === selectedMapel);
+    if (!isValid) {
+      setSelectedMapel("Umum");
+    }
+  }, [selectedKelas, selectedMapel, subjects]);
 
   const fetchHistory = useCallback(async () => {
     if (!selectedKelas) return;
@@ -338,11 +352,16 @@ export default function AdminAbsensiPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Umum">Absen Pagi (Wali Kelas)</SelectItem>
-                  {subjects.map((s, i) => (
-                    <SelectItem key={i} value={s.namaMapel}>
-                      {s.namaMapel}
-                    </SelectItem>
-                  ))}
+                  {subjects
+                    .filter((s) => {
+                      if (!s.kelasDiampu) return false;
+                      return s.kelasDiampu.split(",").map((k) => k.trim()).includes(selectedKelas);
+                    })
+                    .map((s, i) => (
+                      <SelectItem key={i} value={s.namaMapel}>
+                        {s.namaMapel}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
