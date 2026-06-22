@@ -126,6 +126,8 @@ async function seed() {
   console.log("\n📚 Creating Subjects & Assignments...");
   const allTeachers = await db.select().from(schema.teachers);
   
+  const existingSubjects = await db.select().from(schema.subjects);
+  
   const mapelData = [
     { namaMapel: "Matematika", nip: "197601012005", kelas: "X-A, XI-A" },
     { namaMapel: "Fisika", nip: "197601012005", kelas: "X-A, XI-A" },
@@ -136,10 +138,23 @@ async function seed() {
 
   for (const m of mapelData) {
     const teacher = allTeachers.find((t) => t.nip === m.nip);
+    const teacherId = teacher?.id || null;
+    const exists = existingSubjects.some(
+      (s) =>
+        s.namaMapel === m.namaMapel &&
+        s.teacherId === teacherId &&
+        s.kelasDiampu === m.kelas
+    );
+
+    if (exists) {
+      console.log(`   ⏭️ Mapel ${m.namaMapel} already exists, skipping...`);
+      continue;
+    }
+
     try {
       await db.insert(schema.subjects).values({
         namaMapel: m.namaMapel,
-        teacherId: teacher?.id || null,
+        teacherId,
         kelasDiampu: m.kelas,
       });
       console.log(`   ✅ Mapel: ${m.namaMapel} — ${teacher?.namaLengkap || "Unknown"} (${m.kelas})`);
